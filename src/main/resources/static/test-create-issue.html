@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test Create Issue</title>
+    <style>
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        max-width: 900px;
+        margin: 2rem auto;
+      }
+      label {
+        display: block;
+        margin-top: 0.8rem;
+        font-weight: bold;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 0.5rem;
+        box-sizing: border-box;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+      .result {
+        white-space: pre-wrap;
+        background: #f6f8fa;
+        padding: 1rem;
+        border: 1px solid #e1e4e8;
+        margin-top: 1rem;
+      }
+      button {
+        margin-top: 1rem;
+        padding: 0.6rem 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Test /api/issue/create</h1>
+    <p>
+      Fill the fields below, paste your <strong>JWT</strong> token and hit
+      <em>Send</em>. This page sends a multipart/form-data POST with the JSON
+      part named <code>issueCreateDto</code> and the image part named
+      <code>image</code>.
+    </p>
+
+    <label for="jwt">JWT (Authorization Bearer)</label>
+    <input id="jwt" placeholder="Paste JWT here" />
+
+    <div style="margin-top: 0.6rem">
+      <div
+        style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap"
+      >
+        <input
+          id="genId"
+          placeholder="dev id (UUID)"
+          style="flex: 1; min-width: 180px"
+        />
+        <input
+          id="genEmail"
+          placeholder="email"
+          value="dev@example.com"
+          style="flex: 1; min-width: 180px"
+        />
+        <input
+          id="genRoles"
+          placeholder="roles"
+          value="USER"
+          style="flex: 1; min-width: 120px"
+        />
+        <button id="genJwt">Generate JWT</button>
+      </div>
+      <small style="display: block; margin-top: 0.3rem; color: #555"
+        >Dev helper: fill fields (or leave blank) then click
+        <strong>Generate JWT</strong> to get a token from
+        <code>/api/debug/generate-token</code>.</small
+      >
+    </div>
+
+    <label for="jsonLoad">Load JSON (optional)</label>
+    <textarea
+      id="jsonLoad"
+      rows="4"
+      placeholder='e.g. {"id":"...","token":"..."}'
+    ></textarea>
+    <button id="loadJson">Load JSON</button>
+
+    <small
+      >When loading JSON, missing values become the literal text
+      <code>no value present</code>. The token will be validated via
+      <code>/api/debug/whoami</code> — if invalid, JWT is set to
+      <code>no value present</code>.</small
+    >
+
+    <label for="title">Title</label>
+    <input
+      id="title"
+      placeholder="Issue title (max ~40 words)"
+      value="Pothole on Main street"
+    />
+
+    <label for="issueType">Issue Type</label>
+    <select id="issueType">
+      <option value="ROAD">ROAD</option>
+      <option value="WATER">WATER</option>
+      <option value="ELECTRICITY">ELECTRICITY</option>
+      <option value="GARBAGE">GARBAGE</option>
+      <option value="VEHICLE">VEHICLE</option>
+      <option value="OTHER">OTHER</option>
+    </select>
+
+    <label for="description">Description</label>
+    <textarea id="description" rows="4">Large pothole near crosswalk</textarea>
+
+    <label for="criticality">Criticality</label>
+    <select id="criticality">
+      <option value="LOW">LOW</option>
+      <option value="MEDIUM">MEDIUM</option>
+      <option value="HIGH">HIGH</option>
+    </select>
+
+    <label for="location">Location</label>
+    <input id="location" value="Main Street & 3rd" />
+
+    <div class="row">
+      <div>
+        <label for="latitude">Latitude</label>
+        <input id="latitude" type="number" step="any" value="37.7749" />
+      </div>
+      <div>
+        <label for="longitude">Longitude</label>
+        <input id="longitude" type="number" step="any" value="-122.4194" />
+      </div>
+    </div>
+
+    <label for="submittedById">Submitted By (UUID)</label>
+    <input id="submittedById" placeholder="user id (UUID)" />
+
+    <label for="image">Image</label>
+    <input id="image" type="file" accept="image/*" />
+
+    <button id="send">Send</button>
+
+    <div class="result" id="result">Result will appear here</div>
+
+    <script>
+      document.getElementById("send").addEventListener("click", async () => {
+        const resultEl = document.getElementById("result");
+        resultEl.textContent = "Sending...";
+
+        const jwt = document.getElementById("jwt").value.trim();
+        const title = document.getElementById("title").value.trim();
+        const issueType = document.getElementById("issueType").value;
+        const description = document.getElementById("description").value.trim();
+        const criticality = document.getElementById("criticality").value;
+        const location = document.getElementById("location").value.trim();
+        const latitude = parseFloat(document.getElementById("latitude").value);
+        const longitude = parseFloat(
+          document.getElementById("longitude").value,
+        );
+        const submittedById = document
+          .getElementById("submittedById")
+          .value.trim();
+        const fileEl = document.getElementById("image");
+
+        // Helper to treat empty values as the literal text 'no value present'
+        function normalValue(v) {
+          if (
+            v === undefined ||
+            v === null ||
+            (typeof v === "string" && v.trim() === "")
+          )
+            return "no value present";
+          return v;
+        }
+
+        // Normalize submittedById to treat missing as 'no value present'
+        const normalizedSubmittedById = normalValue(submittedById);
+
+        const issueObj = {
+          title: normalValue(title),
+          issueType: normalValue(issueType),
+          description: normalValue(description),
+          criticality: normalValue(criticality),
+          location: normalValue(location),
+          latitude: normalValue(latitude),
+          longitude: normalValue(longitude),
+          submittedById: normalizedSubmittedById,
+        };
+
+        const formData = new FormData();
+        // The server expects a part named `issueCreateDto` containing JSON
+        formData.append(
+          "issueCreateDto",
+          new Blob([JSON.stringify(issueObj)], { type: "application/json" }),
+        );
+        if (fileEl.files && fileEl.files[0]) {
+          formData.append("image", fileEl.files[0]);
+        } else {
+          // Send an empty blob if no file (the controller expects an image part)
+          // Optionally remove this if your server accepts missing image
+          formData.append(
+            "image",
+            new Blob([""], { type: "application/octet-stream" }),
+            "empty.txt",
+          );
+        }
+
+        // Update the form part with normalized values (to send 'no value present' when empty)
+        formData.set(
+          "issueCreateDto",
+          new Blob([JSON.stringify(issueObj)], { type: "application/json" }),
+        );
+
+        try {
+          const headers = {};
+          if (jwt) headers["Authorization"] = "Bearer " + jwt;
+
+          // If you open this page from Live Server (127.0.0.1:5500) the relative path
+          // will target that origin and return 405. Set BACKEND_BASE to your backend
+          // (default assumes Spring Boot on http://localhost:7889)
+          const BACKEND_BASE =
+            window.location.port === "5500"
+              ? "http://localhost:7889"
+              : window.location.origin;
+          const url = BACKEND_BASE + "/api/issue/create";
+
+          // Show which URL we call for easier debugging
+          resultEl.textContent = "Calling " + url + "\n\nSending...";
+
+          const res = await fetch(url, {
+            method: "POST",
+            headers,
+            body: formData,
+          });
+
+          const text = await res.text();
+          resultEl.textContent = `Called ${url}\nHTTP ${res.status} ${res.statusText}\n\n${text}`;
+        } catch (err) {
+          resultEl.textContent =
+            "Request failed: " +
+            err +
+            "\n\nIf this is a CORS error, enable CORS on your backend or open this page via http://localhost:8080/test-create-issue.html";
+        }
+      });
+
+      // Generate JWT (dev helper)
+      document.getElementById("genJwt").addEventListener("click", async () => {
+        const resultEl = document.getElementById("result");
+        resultEl.textContent = "Generating JWT...";
+        const id = document.getElementById("genId").value.trim();
+        const email = document.getElementById("genEmail").value.trim();
+        const roles = document.getElementById("genRoles").value.trim();
+
+        try {
+          const BACKEND_BASE =
+            window.location.port === "5500"
+              ? "http://localhost:7889"
+              : window.location.origin;
+          const url = BACKEND_BASE + "/api/debug/generate-token";
+
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: id || undefined,
+              email: email || undefined,
+              roles: roles || undefined,
+            }),
+          });
+
+          if (!res.ok) {
+            const txt = await res.text();
+            resultEl.textContent = `Generate failed: HTTP ${res.status} ${res.statusText}\n\n${txt}`;
+            return;
+          }
+
+          const data = await res.json();
+          document.getElementById("jwt").value = data.token || "";
+          resultEl.textContent = "Generated token and populated JWT field.";
+        } catch (err) {
+          resultEl.textContent = "Generate token failed: " + err;
+        }
+      });
+    </script>
+  </body>
+</html>

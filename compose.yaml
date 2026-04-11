@@ -1,0 +1,62 @@
+services:
+  nagarsetu:
+    image: magician05/nagar-setu:v5
+    container_name: nagarsetu
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      SPRING_REDIS_HOST: ${SPRING_REDIS_HOST}
+      SPRING_REDIS_PORT: ${SPRING_REDIS_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - nagar-setu-network
+    ports:
+      - "7889:8080"
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    ports:
+      - "4316:8080"
+
+    networks:
+      - nagar-setu-network
+
+  nagar_setu_database:
+    image: postgres:16
+    container_name: nagar_setu_database
+    environment:
+      POSTGRES_DB: nagarsetu
+      POSTGRES_USER: nagarsetu
+      POSTGRES_PASSWORD: nagarsetu
+    volumes:
+      - nagar_setu_database_volume:/var/lib/postgresql/data
+    networks:
+      - nagar-setu-network
+    ports:
+      - "5432:5432"
+
+  nagar_setu_redis:
+    image: redis:7.2-alpine
+    container_name: nagar_setu_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - nagar_setu_redis_volume:/data
+    networks:
+      - nagar-setu-network
+    ports:
+      - "6379:6379"
+
+networks:
+  nagar-setu-network:
+    driver: bridge
+
+volumes:
+  nagar_setu_database_volume:
+  nagar_setu_redis_volume:
