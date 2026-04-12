@@ -42,6 +42,7 @@ public class AdminService {
         private final IssueRepository issueRepository;
         private final IssueAssignmentHistoryRepository issueAssignmentHistoryRepository;
         private final IssueStageHistoryRepository issueStageHistoryRepository;
+        private final com.project.nagarSetu.repository.WardRepository wardRepository;
 
         @org.springframework.transaction.annotation.Transactional
         public boolean acceptWorker(UUID workerId, UUID superVisorId) {
@@ -151,7 +152,6 @@ public class AdminService {
                                                 "Supervisor not found with id: " + superVisorId));
 
                 supervisior.setStarted(true);
-                supervisior.setDepartment(IssueType.valueOf(request.getDepartment()));
                 supervisior.setJurisdictionName(request.getJurisdictionName());
                 supervisior.setJurisdictionCenterLat(request.getJurisdictionCenterLat());
                 supervisior.setJurisdictionCenterLon(request.getJurisdictionCenterLon());
@@ -171,11 +171,11 @@ public class AdminService {
         }
 
         public List<com.project.nagarSetu.util.dto.admin.AdminWorkerDto> getAllSupervisors() {
-                return supervisiorRepository.findAllWorker();
+                return supervisiorRepository.findAllSupervisors();
         }
 
         public List<com.project.nagarSetu.util.dto.admin.AdminWorkerDto> getAllSupervisorsWithNoStart() {
-                return supervisiorRepository.findAllWorkerNoStart();
+                return supervisiorRepository.findAllSupervisorsNoStart();
         }
 
         public Boolean reassignIssueWorker(UUID issueId, UUID workerId) {
@@ -276,6 +276,113 @@ public class AdminService {
                 }
 
                 return true;
+        }
+
+        @org.springframework.transaction.annotation.Transactional
+        public Boolean allocateWardToSupervisor(UUID wardId, UUID supervisorId) {
+                com.project.nagarSetu.entity.Ward ward = wardRepository.findById(wardId)
+                                .orElseThrow(() -> new EntityNotFoundException("Ward not found with id: " + wardId));
+                Supervisior supervisior = supervisiorRepository.findById(supervisorId)
+                                .orElseThrow(() -> new EntityNotFoundException("Supervisor not found with id: " + supervisorId));
+                
+                // If supervisor is already linked to another ward, unlink it first
+                wardRepository.findBySupervisor_Id(supervisorId).ifPresent(oldWard -> {
+                        oldWard.setSupervisor(null);
+                        wardRepository.save(oldWard);
+                });
+
+                ward.setSupervisor(supervisior);
+                wardRepository.save(ward);
+                return true;
+        }
+
+        @org.springframework.transaction.annotation.Transactional
+        public Boolean updateSupervisor(UUID supervisorId, com.project.nagarSetu.util.dto.admin.UpdateSupervisorDto dto) {
+                Supervisior supervisior = supervisiorRepository.findById(supervisorId)
+                                .orElseThrow(() -> new EntityNotFoundException("Supervisor not found with id: " + supervisorId));
+                
+                if (dto.getFullName() != null) supervisior.getUser().setFullName(dto.getFullName());
+                if (dto.getPhoneNumber() != null) supervisior.getUser().setPhoneNumber(dto.getPhoneNumber());
+                if (dto.getAge() != null) supervisior.getUser().setAge(dto.getAge());
+                if (dto.getGender() != null) supervisior.getUser().setGender(dto.getGender());
+                if (dto.getLocation() != null) supervisior.getUser().setLocation(dto.getLocation());
+                if (dto.getJurisdictionName() != null) supervisior.setJurisdictionName(dto.getJurisdictionName());
+                
+                userRepository.save(supervisior.getUser());
+                supervisiorRepository.save(supervisior);
+                return true;
+        }
+
+        @org.springframework.transaction.annotation.Transactional
+        public Boolean deleteSupervisor(UUID supervisorId) {
+                Supervisior supervisior = supervisiorRepository.findById(supervisorId)
+                                .orElseThrow(() -> new EntityNotFoundException("Supervisor not found with id: " + supervisorId));
+                
+                // 1. Unlink from Ward
+                wardRepository.findBySupervisor_Id(supervisorId).ifPresent(ward -> {
+                        ward.setSupervisor(null);
+                        wardRepository.save(ward);
+                });
+
+                // 2. Unassign workers
+                java.util.List<Worker> workers = workerRepository.findBySupervisior_Id(supervisorId);
+                for (Worker w : workers) {
+                        w.setSupervisior(null);
+                }
+                workerRepository.saveAll(workers);
+
+                // 3. Re-assign open issues back to admin fallback
+                java.util.List<Issue> pendingIssues = issueRepository.findPendingIssuesBySupervisorId(supervisorId); 
+                for (Issue issue : pendingIssues) {
+                        issue.setSupervisior(null);
+                        issue.setAdmin(true);
+                        
+                        // Also clear assigned workers to restart the matching process fully
+                        if (issue.getAssigned() != null) {
+                                for (Worker w : issue.getAssigned()) {
+                                        w.getIssues().remove(issue);
+                                        workerRepository.save(w);
+                                }
+                                issue.getAssigned().clear();
+                        }
+                        
+                        // We reset stage so that when a new supervisor accepts, it will trigger auto-assign again
+                        com.project.nagarSetu.util.enums.Stages previousStage = issue.getStages();
+                        issue.setStages(com.project.nagarSetu.util.enums.Stages.PENDING);
+                        
+                        // Log history
+                        if (previousStage != issue.getStages()) {
+                                issueStageHistoryRepository.save(com.project.nagarSetu.entity.IssueStageHistory.builder()
+                                                .issue(issue)
+                                                .fromStage(previousStage)
+                                                .toStage(issue.getStages())
+                                                .actorType("ADMIN")
+                                                .note("Returned to fallback queue due to Supervisor deleted")
+                                                .build());
+                        }
+                        
+                        issueRepository.save(issue);
+                }
+                
+                // 4. Disable User and delete Supervisor
+                com.project.nagarSetu.entity.User user = supervisior.getUser();
+                if (user != null) {
+                    user.setEnable(false);
+                    userRepository.save(user);
+                }
+                supervisiorRepository.delete(supervisior);
+                
+                return true;
+        }
+
+        public List<com.project.nagarSetu.util.dto.admin.AdminWardDto> getAllAdminWards() {
+                return wardRepository.findAll().stream().map(ward -> com.project.nagarSetu.util.dto.admin.AdminWardDto.builder()
+                        .wardId(ward.getId())
+                        .wardName(ward.getName())
+                        .region(ward.getRegion())
+                        .supervisorId(ward.getSupervisor() != null ? ward.getSupervisor().getId() : null)
+                        .supervisorName(ward.getSupervisor() != null && ward.getSupervisor().getUser() != null ? ward.getSupervisor().getUser().getFullName() : null)
+                        .build()).collect(Collectors.toList());
         }
 
         public com.project.nagarSetu.util.dto.issue.Issue30DayStatsDto getIssue30DayStats() {

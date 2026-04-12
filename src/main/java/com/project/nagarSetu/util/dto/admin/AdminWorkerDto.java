@@ -10,21 +10,13 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @Builder
+@AllArgsConstructor
 public class AdminWorkerDto {
     private UUID id;
     private String username;
     private LocalDateTime createdAt;
     private String location;
     private Boolean started;
-    private IssueType department;
-
-    public AdminWorkerDto(UUID id, String username, LocalDateTime createdAt, String location, Boolean started,
-            IssueType department) {
-        this.id = id;
-        this.username = username;
-        this.createdAt = createdAt;
-        this.location = location;
-        this.started = started;
-        this.department = department;
-    }
+    private UUID wardId;
+    private String wardName;
 }

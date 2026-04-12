@@ -16,4 +16,8 @@ public class AdminUserDto {
     private LocalDateTime createdAt;
     private String location;
     private Boolean started;
+    private UUID supervisorId;
+    private String supervisorName;
+    private UUID wardId;
+    private String wardName;
 }

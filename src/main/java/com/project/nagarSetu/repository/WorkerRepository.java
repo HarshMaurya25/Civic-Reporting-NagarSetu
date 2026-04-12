@@ -14,20 +14,23 @@ import java.util.UUID;
 @Repository
 public interface WorkerRepository extends JpaRepository<Worker, UUID> {
 
-    @Query("SELECT new com.project.nagarSetu.util.dto.admin.AdminUserDto(w.id , w.user.fullName ,w.user.createdAt , w.user.location , w.started) FROM Worker w")
+    @Query("SELECT new com.project.nagarSetu.util.dto.admin.AdminUserDto(" +
+            "w.id, w.user.fullName, w.user.createdAt, w.user.location, w.started, " +
+            "s.id, s.user.fullName, wd.id, wd.name) " +
+            "FROM Worker w LEFT JOIN w.supervisior s LEFT JOIN Ward wd ON wd.supervisor.id = s.id")
     List<AdminUserDto> findAllWorker();
 
-    @Query("SELECT new com.project.nagarSetu.util.dto.admin.AdminUserDto" +
-            "(w.id , w.user.fullName ,w.user.createdAt , w.user.location , w.started)" +
-            " FROM Worker w WHERE w.started = false")
+    @Query("SELECT new com.project.nagarSetu.util.dto.admin.AdminUserDto(" +
+            "w.id, w.user.fullName, w.user.createdAt, w.user.location, w.started, " +
+            "s.id, s.user.fullName, wd.id, wd.name) " +
+            "FROM Worker w LEFT JOIN w.supervisior s LEFT JOIN Ward wd ON wd.supervisor.id = s.id WHERE w.started = false")
     List<AdminUserDto> findAllWorkerNoStart();
 
     @Query("SELECT new com.project.nagarSetu.util.dto.admin.WorkerAssignmentDto(w.id, w.user.fullName, COUNT(i)) " +
             "FROM Worker w LEFT JOIN w.issues i " +
-            "WHERE w.user.location = :location AND w.supervisior.department = :department " +
+            "WHERE w.supervisior.id = :supervisorId " +
             "GROUP BY w.id, w.user.fullName ORDER BY COUNT(i) ASC")
-    List<com.project.nagarSetu.util.dto.admin.WorkerAssignmentDto> findWorkersWithLoad(String location,
-            com.project.nagarSetu.util.enums.IssueType department);
+    List<com.project.nagarSetu.util.dto.admin.WorkerAssignmentDto> findWorkersWithLoad(@Param("supervisorId") UUID supervisorId);
 
     List<Worker> findBySupervisior_Id(UUID supervisiorId);
 

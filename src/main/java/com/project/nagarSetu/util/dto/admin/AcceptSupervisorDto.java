@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AcceptSupervisorDto {
-    private String department;
     private String jurisdictionName;
     private Double jurisdictionCenterLat;
     private Double jurisdictionCenterLon;

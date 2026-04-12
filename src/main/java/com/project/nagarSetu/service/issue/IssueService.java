@@ -50,6 +50,7 @@ public class IssueService {
     private final ApplicationEventPublisher eventPublisher;
     private final IssueStageHistoryRepository issueStageHistoryRepository;
     private final IssueAssignmentHistoryRepository issueAssignmentHistoryRepository;
+    private final com.project.nagarSetu.service.WardService wardService;
 
     private final String issueImg = "ISSUE_IMG_";
 
@@ -109,12 +110,18 @@ public class IssueService {
                 .description(dto.getDescription())
                 .criticality(dto.getCriticality())
                 .location(dto.getLocation())
-                .wardId(dto.getWardId())
                 .latitude(dto.getLatitude())
                 .longitude(dto.getLongitude())
                 .targetResolutionMinutes(dto.getTargetResolutionMinutes())
                 .submittedBy(submittedBy)
                 .build();
+
+        Optional<com.project.nagarSetu.entity.Ward> optWard = wardService.getWardByLocation(
+                dto.getLatitude(), dto.getLongitude()
+        );
+        if (optWard.isPresent()) {
+            issue.setWardId(optWard.get().getId().toString());
+        }
 
         issueRepository.save(issue);
 
@@ -262,11 +269,7 @@ public class IssueService {
             throw new IllegalArgumentException("supervisorId is required");
         Supervisior s = supervisiorRepository.findById(supervisorId)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Supervisor not found"));
-        if (s.getUser() == null)
-            throw new IllegalStateException("Supervisor has no user");
-        String location = s.getUser().getLocation();
-        com.project.nagarSetu.util.enums.IssueType dept = s.getDepartment();
-        return issueRepository.getIssueMapForSupervisor(location, dept);
+        return issueRepository.getIssueMapForSupervisor(supervisorId);
     }
 
     @Transactional
@@ -287,19 +290,29 @@ public class IssueService {
             throw new IllegalArgumentException("issue is required");
         }
 
-        // 1. Find Area Head Supervisor
-        Optional<Supervisior> optSupervisor = supervisiorRepository.findHeadOfArea(
-                issue.getLatitude(), issue.getLongitude(), issue.getIssueType().name());
+        // 1. Find Ward and Area Head Supervisor
+        Optional<com.project.nagarSetu.entity.Ward> optWard = wardService.getWardByLocation(
+                issue.getLatitude(), issue.getLongitude());
 
-        if (optSupervisor.isEmpty()) {
-            log.warn("No valid supervisor found for coordinates: [{}, {}] in department: {}",
-                    issue.getLatitude(), issue.getLongitude(), issue.getIssueType());
+        if (optWard.isEmpty()) {
+            log.warn("No valid ward found for coordinates: [{}, {}]",
+                    issue.getLatitude(), issue.getLongitude());
             issue.setAdmin(true);
             issueRepository.save(issue);
             return true;
         }
 
-        Supervisior supervisor = optSupervisor.get();
+        com.project.nagarSetu.entity.Ward ward = optWard.get();
+        issue.setWardId(ward.getId().toString());
+
+        Supervisior supervisor = ward.getSupervisor();
+        if (supervisor == null) {
+            log.warn("Ward {} has no assigned supervisor", ward.getName());
+            issue.setAdmin(true);
+            issueRepository.save(issue);
+            return true;
+        }
+
         issue.setSupervisior(supervisor);
 
         // 2. Fetch Scorable Workers

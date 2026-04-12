@@ -62,6 +62,34 @@ public class AdminController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/wards")
+    public ResponseEntity<List<com.project.nagarSetu.util.dto.admin.AdminWardDto>> getAllWards() {
+        return ResponseEntity.ok(adminService.getAllAdminWards());
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/wards/{wardId}/supervisor/{supervisorId}")
+    public ResponseEntity<Boolean> allocateWardToSupervisor(
+            @PathVariable UUID wardId,
+            @PathVariable UUID supervisorId) {
+        return ResponseEntity.ok(adminService.allocateWardToSupervisor(wardId, supervisorId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/supervisors/{supervisorId}")
+    public ResponseEntity<Boolean> updateSupervisor(
+            @PathVariable UUID supervisorId,
+            @RequestBody com.project.nagarSetu.util.dto.admin.UpdateSupervisorDto request) {
+        return ResponseEntity.ok(adminService.updateSupervisor(supervisorId, request));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/supervisors/{supervisorId}")
+    public ResponseEntity<Boolean> deleteSupervisor(@PathVariable UUID supervisorId) {
+        return ResponseEntity.ok(adminService.deleteSupervisor(supervisorId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/workers")
     public ResponseEntity<List<AdminUserDto>> getAllWorkers() {
         return new ResponseEntity<>(adminService.getAllWorkers(), HttpStatus.OK);

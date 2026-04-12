@@ -1,6 +1,11 @@
 services:
   nagarsetu:
-    image: magician05/nagar-setu:v5
+    build:
+      context: .
+      dockerfile: Dockerfile
+      tags:
+        - magician05/nagar-setu:v6
+    image: magician05/nagar-setu:v6
     container_name: nagarsetu
     environment:
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
@@ -29,7 +34,7 @@ services:
       - nagar-setu-network
 
   nagar_setu_database:
-    image: postgres:16
+    image: postgis/postgis:16-3.4-alpine
     container_name: nagar_setu_database
     environment:
       POSTGRES_DB: nagarsetu

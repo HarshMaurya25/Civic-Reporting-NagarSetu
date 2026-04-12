@@ -25,9 +25,6 @@ public class Supervisior {
     @OneToMany(fetch = FetchType.LAZY, mappedBy = "supervisior")
     private Set<Worker> worker;
 
-    @Enumerated(EnumType.STRING)
-    private IssueType department;
-
     private Boolean started;
 
     private java.util.UUID lastAssignedWorkerId;

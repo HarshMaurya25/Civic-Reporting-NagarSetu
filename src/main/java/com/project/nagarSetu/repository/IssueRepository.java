@@ -100,9 +100,8 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueByMap(" +
                         "i.id, i.latitude, i.longitude, i.criticality, i.stages, i.issueType) " +
-                        "FROM Issue i WHERE i.location = :location AND i.issueType = :department")
-        java.util.Set<IssueByMap> getIssueMapForSupervisor(@Param("location") String location,
-                        @Param("department") com.project.nagarSetu.util.enums.IssueType department);
+                        "FROM Issue i WHERE i.supervisior.id = :supervisorId")
+        java.util.Set<IssueByMap> getIssueMapForSupervisor(@Param("supervisorId") java.util.UUID supervisorId);
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueByMap(" +
                         "i.id, i.latitude, i.longitude, i.criticality, i.stages, i.issueType) " +
@@ -122,4 +121,7 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
         List<Worker> findWorkersByIssueId(@Param("issueId") UUID issueId);
 
         List<Issue> findBySupervisiorIdAndAdminTrue(UUID supervisiorId);
+        
+        @Query("SELECT i FROM Issue i WHERE i.supervisior.id = :supervisiorId AND i.stages != 'RESOLVED'")
+        List<Issue> findPendingIssuesBySupervisorId(@Param("supervisiorId") UUID supervisiorId);
 }
