@@ -30,9 +30,12 @@ public interface WorkerRepository extends JpaRepository<Worker, UUID> {
             "FROM Worker w LEFT JOIN w.issues i " +
             "WHERE w.supervisior.id = :supervisorId " +
             "GROUP BY w.id, w.user.fullName ORDER BY COUNT(i) ASC")
-    List<com.project.nagarSetu.util.dto.admin.WorkerAssignmentDto> findWorkersWithLoad(@Param("supervisorId") UUID supervisorId);
+    List<com.project.nagarSetu.util.dto.admin.WorkerAssignmentDto> findWorkersWithLoad(
+            @Param("supervisorId") UUID supervisorId);
 
     List<Worker> findBySupervisior_Id(UUID supervisiorId);
+
+    long countBySupervisior_Id(UUID supervisiorId);
 
     @Query("""
                 SELECT new com.project.nagarSetu.util.dto.user.GetWorkerForSupervisorDto(
@@ -50,29 +53,30 @@ public interface WorkerRepository extends JpaRepository<Worker, UUID> {
                 GROUP BY w.id, w.user.fullName
             """)
     List<GetWorkerForSupervisorDto> findTheWorker(@Param("id") UUID id);
-    
+
     @Query("""
-    SELECT w
-    FROM Worker w
-    JOIN w.issues i
-    WHERE i.id = :issueId
-    """)
+            SELECT w
+            FROM Worker w
+            JOIN w.issues i
+            WHERE i.id = :issueId
+            """)
     Worker findWorkersByIssueId(@Param("issueId") UUID issueId);
 
     @Query("""
-        SELECT new com.project.nagarSetu.util.dto.issue.WorkerScoringDto(
-           w.id,
-           w.user.fullName,
-           w.latitude,
-           w.longitude,
-           w.lastAssignedAt,
-           w.lifetimeAssignments,
-           (SELECT COUNT(i) FROM w.issues i WHERE i.stages != 'RESOLVED' AND i.isDeleted = false)
-        )
-        FROM Worker w
-        WHERE w.supervisior.id = :supervisorId
-        AND w.started = true
-    """)
-    List<com.project.nagarSetu.util.dto.issue.WorkerScoringDto> findScorableWorkers(@Param("supervisorId") UUID supervisorId);
+                SELECT new com.project.nagarSetu.util.dto.issue.WorkerScoringDto(
+                   w.id,
+                   w.user.fullName,
+                   w.latitude,
+                   w.longitude,
+                   w.lastAssignedAt,
+                   w.lifetimeAssignments,
+                   (SELECT COUNT(i) FROM w.issues i WHERE i.stages != 'RESOLVED' AND i.isDeleted = false)
+                )
+                FROM Worker w
+                WHERE w.supervisior.id = :supervisorId
+                AND w.started = true
+            """)
+    List<com.project.nagarSetu.util.dto.issue.WorkerScoringDto> findScorableWorkers(
+            @Param("supervisorId") UUID supervisorId);
 
 }

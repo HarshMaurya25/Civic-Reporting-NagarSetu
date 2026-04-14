@@ -5,6 +5,7 @@ import com.project.nagarSetu.util.dto.authentication.LoginRequestDto;
 import com.project.nagarSetu.util.dto.authentication.RegistrationRequestDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetByUserDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetDto;
+import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
 import com.project.nagarSetu.util.dto.user.GetWorkerForSupervisorDto;
 import com.project.nagarSetu.util.dto.worker.WorkerCreateResponse;
 import com.project.nagarSetu.util.dto.worker.WorkerLoginReponseDto;
@@ -61,8 +62,17 @@ public class SuperVisiorController {
         return ResponseEntity.ok(issues);
     }
 
+    @PreAuthorize("hasRole('SUPERVISOR')")
+    @GetMapping("/issues/stats/matrix")
+    public ResponseEntity<IssueMatrixSummaryDto> getIssueMatrixForSupervisor(
+            @RequestParam UUID supervisorId,
+            @RequestParam(required = false) UUID wardId) {
+        return ResponseEntity.ok(service.getIssueMatrixSummary(supervisorId, wardId));
+    }
+
     @GetMapping("/{supervisiorId}/workers")
-    public ResponseEntity<List<GetWorkerForSupervisorDto>> getAllWorkersForSupervisior(@PathVariable UUID supervisiorId) {
+    public ResponseEntity<List<GetWorkerForSupervisorDto>> getAllWorkersForSupervisior(
+            @PathVariable UUID supervisiorId) {
         List<GetWorkerForSupervisorDto> workers = service.getAllWorkersForSupervisior(supervisiorId);
         return ResponseEntity.ok(workers);
     }

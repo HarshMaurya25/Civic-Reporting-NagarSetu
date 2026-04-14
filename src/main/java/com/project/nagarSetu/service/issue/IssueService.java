@@ -95,14 +95,18 @@ public class IssueService {
     }
 
     @Transactional
-    public UUID createIssue(IssueCreateDto dto, MultipartFile file) {
+    public UUID createIssue(IssueCreateDto dto, List<MultipartFile> files) {
 
         User submittedBy = userRepository.findByUserId(dto.getSubmittedById());
         if (submittedBy == null) {
             throw new IllegalArgumentException("User not found with ID: " + dto.getSubmittedById());
         }
 
-        validateContentMedia(file);
+        if (files != null && !files.isEmpty()) {
+            for (MultipartFile file : files) {
+                validateContentMedia(file);
+            }
+        }
 
         Issue issue = Issue.builder()
                 .title(dto.getTitle())
@@ -117,18 +121,25 @@ public class IssueService {
                 .build();
 
         Optional<com.project.nagarSetu.entity.Ward> optWard = wardService.getWardByLocation(
-                dto.getLatitude(), dto.getLongitude()
-        );
+                dto.getLatitude(), dto.getLongitude());
         if (optWard.isPresent()) {
             issue.setWardId(optWard.get().getId().toString());
         }
 
         issueRepository.save(issue);
 
-        Map<String, String> map = imageService.saveImage(file, issue.getId());
-
-        issue.setSecureURL(map.get("secure_url").toString());
-        issue.setFormat(map.get("format").toString());
+        if (files != null && !files.isEmpty()) {
+            for (int i = 0; i < files.size() && i < 3; i++) {
+                MultipartFile file = files.get(i);
+                Map<String, String> map = imageService.saveImage(file, UUID.randomUUID());
+                if (i == 0) {
+                    issue.setSecureURL(map.get("secure_url").toString());
+                    issue.setFormat(map.get("format").toString());
+                } else {
+                    issue.getAdditionalUrls().add(map.get("secure_url").toString());
+                }
+            }
+        }
 
         assignWorkerSmartLogic(issue);
 
@@ -140,6 +151,8 @@ public class IssueService {
         Issue issue = issueRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Issue not found"));
 
+        validateContentMedia(file);
+
         com.project.nagarSetu.util.enums.Stages previousStage = issue.getStages();
         issue.setStages(com.project.nagarSetu.util.enums.Stages.RESOLVED);
         stampStageTimestamp(issue, com.project.nagarSetu.util.enums.Stages.RESOLVED);
@@ -147,15 +160,15 @@ public class IssueService {
                 "Issue marked done via doneIssue endpoint");
 
         Map params = ObjectUtils.asMap(
-                "public_id", issueImg + id,
+                "public_id", issueImg + id + "_resolved",
                 "overwrite", true,
                 "resource_type", "image");
 
-        Map<String, String> map = imageService.saveImage(file, id);
+        Map<String, String> map = imageService.saveImage(file, UUID.randomUUID());
         if (map != null && map.containsKey("secure_url") && map.get("secure_url") != null) {
-            issue.setSecureURL(map.get("secure_url").toString());
+            issue.setResolvedSecureURL(map.get("secure_url").toString());
             if (map.containsKey("format") && map.get("format") != null) {
-                issue.setFormat(map.get("format").toString());
+                issue.setResolvedFormat(map.get("format").toString());
             }
         }
         issueRepository.save(issue);
@@ -196,6 +209,14 @@ public class IssueService {
         }
 
         return id;
+    }
+
+    @Transactional
+    public Page<IssueSolvedDto> getSolvedIssuesWithImage(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = size > 0 ? size : PAGE_SIZE;
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+        return issueRepository.getSolvedIssuesWithImage(pageable);
     }
 
     @Transactional
@@ -264,12 +285,10 @@ public class IssueService {
     }
 
     @Transactional
-    public java.util.Set<IssueByMap> getIssueMapForSupervisor(java.util.UUID supervisorId) {
-        if (supervisorId == null)
-            throw new IllegalArgumentException("supervisorId is required");
-        Supervisior s = supervisiorRepository.findById(supervisorId)
-                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Supervisor not found"));
-        return issueRepository.getIssueMapForSupervisor(supervisorId);
+    public java.util.Set<IssueByMap> getIssueMapForSupervisor(java.util.UUID wardId) {
+        if (wardId == null)
+            throw new IllegalArgumentException("wardId is required");
+        return issueRepository.getIssueMapForSupervisor(wardId.toString());
     }
 
     @Transactional
@@ -596,6 +615,73 @@ public class IssueService {
 
         workerRepository.saveAll(currentWorkers);
         workerRepository.save(newWorker);
+    }
+
+    @Transactional
+    public boolean upvoteIssue(UUID issueId, UUID userId) {
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() -> new IssueNotFoundException("Issue not found"));
+        User user = userRepository.findByUserId(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+
+        if (issue.getSubmittedBy().getId().equals(user.getId())) {
+            return false; // Creator cannot implicitly upvote again
+        }
+
+        if (issue.getUpvoters().contains(user)) {
+            return false; // Already upvoted
+        }
+
+        issue.getUpvoters().add(user);
+        issue.setUpvoteCount(issue.getUpvoters().size());
+
+        // Dynamic Criticality Adjustment
+        int votes = issue.getUpvoteCount();
+        if (votes >= 10 && issue.getCriticality() != com.project.nagarSetu.util.enums.Criticality.HIGH) {
+            issue.setCriticality(com.project.nagarSetu.util.enums.Criticality.HIGH);
+        } else if (votes >= 5 && issue.getCriticality() == com.project.nagarSetu.util.enums.Criticality.LOW) {
+            issue.setCriticality(com.project.nagarSetu.util.enums.Criticality.MEDIUM);
+        }
+
+        issueRepository.save(issue);
+        return true;
+    }
+
+    @Transactional
+    public List<IssueGetDto> getNearbyUnresolvedIssues(double lat, double lng,
+            com.project.nagarSetu.util.enums.IssueType category) {
+        double maxRadiusKm = switch (category) {
+            case WASTE_MANAGEMENT -> 0.05;
+            case POTHOLE -> 0.5;
+            case INFRASTRUCTURE -> 0.1;
+            default -> 0.2;
+        };
+
+        List<Issue> unresolved = issueRepository.findUnresolvedByCategory(category);
+        List<IssueGetDto> nearby = new ArrayList<>();
+
+        for (Issue i : unresolved) {
+            double distance = calculateHaversine(lat, lng, i.getLatitude(), i.getLongitude());
+            if (distance <= maxRadiusKm) {
+                nearby.add(IssueGetDto.builder()
+                        .id(i.getId())
+                        .title(i.getTitle())
+                        .issueType(i.getIssueType())
+                        .description(i.getDescription())
+                        .criticality(i.getCriticality())
+                        .location(i.getLocation())
+                        .latitude(i.getLatitude())
+                        .longitude(i.getLongitude())
+                        .stages(i.getStages())
+                        .submittedBy(i.getSubmittedBy() != null ? i.getSubmittedBy().getFullName() : "Unknown")
+                        .createAt(i.getCreateAt())
+                        .imageUrl(i.getSecureURL())
+                        .build());
+            }
+        }
+        return nearby;
     }
 
 }

@@ -4,6 +4,7 @@ import com.project.nagarSetu.service.admin.AdminService;
 import com.project.nagarSetu.util.dto.admin.AdminWorkerDto;
 import com.project.nagarSetu.util.dto.worker.WorkerCreateResponse;
 import com.project.nagarSetu.util.dto.worker.WorkerLoginReponseDto;
+import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 import java.util.List;
 import com.project.nagarSetu.util.dto.admin.AdminUserDto;
+import com.project.nagarSetu.util.dto.admin.AdminStatsOverviewDto;
+import com.project.nagarSetu.util.dto.admin.UserBasicDetailDto;
+import com.project.nagarSetu.util.dto.admin.WardDetailDto;
 
 @RestController
 @AllArgsConstructor
@@ -68,6 +72,14 @@ public class AdminController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/wards/detail")
+    public ResponseEntity<WardDetailDto> getWardDetail(
+            @RequestParam(required = false) UUID wardId,
+            @RequestParam(required = false) String wardName) {
+        return ResponseEntity.ok(adminService.getWardDetail(wardId, wardName));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/wards/{wardId}/supervisor/{supervisorId}")
     public ResponseEntity<Boolean> allocateWardToSupervisor(
             @PathVariable UUID wardId,
@@ -96,6 +108,24 @@ public class AdminController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/users/supervisors/{supervisorId}/detail")
+    public ResponseEntity<UserBasicDetailDto> getSupervisorDetail(@PathVariable UUID supervisorId) {
+        return ResponseEntity.ok(adminService.getSupervisorDetail(supervisorId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/users/workers/{workerId}/detail")
+    public ResponseEntity<UserBasicDetailDto> getWorkerDetail(@PathVariable UUID workerId) {
+        return ResponseEntity.ok(adminService.getWorkerDetail(workerId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/users/citizens/{userId}/detail")
+    public ResponseEntity<UserBasicDetailDto> getCitizenDetail(@PathVariable UUID userId) {
+        return ResponseEntity.ok(adminService.getCitizenDetail(userId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/supervisors")
     public ResponseEntity<List<AdminWorkerDto>> getAllSupervisors() {
         return new ResponseEntity<>(adminService.getAllSupervisors(), HttpStatus.OK);
@@ -120,6 +150,24 @@ public class AdminController {
         if (stats == null)
             return ResponseEntity.noContent().build();
         return ResponseEntity.ok(stats);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/issues/stats/matrix")
+    public ResponseEntity<IssueMatrixSummaryDto> getIssueMatrixForAdmin(
+            @RequestParam(required = false) UUID wardId) {
+        return ResponseEntity.ok(adminService.getIssueMatrixSummary(wardId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/stats/overview")
+    public ResponseEntity<AdminStatsOverviewDto> getAdminOverviewStats() {
+        return ResponseEntity.ok(adminService.getAdminOverviewStats());
+    }
+
+    @GetMapping("/wards/{wardId}/issues/stats/matrix")
+    public ResponseEntity<IssueMatrixSummaryDto> getIssueMatrixForWard(@PathVariable UUID wardId) {
+        return ResponseEntity.ok(adminService.getIssueMatrixSummary(wardId));
     }
 
 }

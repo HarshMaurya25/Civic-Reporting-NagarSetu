@@ -9,6 +9,9 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -75,6 +78,29 @@ public class Issue {
 
     private String format;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "issue_additional_urls", joinColumns = @JoinColumn(name = "issue_id"))
+    @Column(name = "url")
+    @Builder.Default
+    private List<String> additionalUrls = new ArrayList<>();
+
+    private String resolvedSecureURL;
+
+    private String resolvedFormat;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "issue_upvoters",
+        joinColumns = @JoinColumn(name = "issue_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    @Builder.Default
+    private Set<User> upvoters = new HashSet<>();
+
+    @Column(columnDefinition = "integer default 0")
+    @Builder.Default
+    private Integer upvoteCount = 0;
+
     @ManyToMany(fetch = FetchType.LAZY, mappedBy = "issues")
     private Set<Worker> assigned;
 
@@ -112,6 +138,9 @@ public class Issue {
         this.admin = false;
         if (this.reopenCount == null) {
             this.reopenCount = 0;
+        }
+        if (this.upvoteCount == null) {
+            this.upvoteCount = 0;
         }
     }
 }

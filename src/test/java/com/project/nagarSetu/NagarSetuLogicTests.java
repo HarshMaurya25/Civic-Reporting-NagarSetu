@@ -43,7 +43,13 @@ public class NagarSetuLogicTests {
     private ImageService imageService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
-    
+    @Mock
+    private com.project.nagarSetu.service.WardService wardService;
+    @Mock
+    private IssueStageHistoryRepository issueStageHistoryRepository;
+    @Mock
+    private IssueAssignmentHistoryRepository issueAssignmentHistoryRepository;
+
     @InjectMocks
     private IssueService issueService;
 
@@ -56,7 +62,9 @@ public class NagarSetuLogicTests {
 
     @BeforeEach
     public void setup() {
-        // Prepare some basics if needed
+        lenient().when(wardService.getWardByLocation(anyDouble(), anyDouble())).thenReturn(Optional.empty());
+        lenient().when(issueStageHistoryRepository.save(any())).thenAnswer(i -> i.getArguments()[0]);
+        lenient().when(issueAssignmentHistoryRepository.save(any())).thenAnswer(i -> i.getArguments()[0]);
     }
 
     @Test
@@ -65,12 +73,13 @@ public class NagarSetuLogicTests {
         Worker newWorker = new Worker();
         newWorker.setId(workerId);
         newWorker.setIssues(new HashSet<>());
-        User workerUser = new User(); workerUser.setEmail("worker@test.com");
+        User workerUser = new User();
+        workerUser.setEmail("worker@test.com");
         newWorker.setUser(workerUser);
 
         Supervisior supervisor = new Supervisior();
         supervisor.setId(supervisorId);
-        
+
         Issue forgotIssue = new Issue();
         forgotIssue.setId(UUID.randomUUID());
         forgotIssue.setAdmin(true);
@@ -100,13 +109,14 @@ public class NagarSetuLogicTests {
         issue.setId(issueId);
         issue.setLatitude(40.0);
         issue.setLongitude(40.0);
-        issue.setIssueType(com.project.nagarSetu.util.enums.IssueType.ROAD);
+        issue.setIssueType(com.project.nagarSetu.util.enums.IssueType.INFRASTRUCTURE);
 
         Supervisior supervisor = new Supervisior();
         supervisor.setId(supervisorId);
 
         when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
-        when(supervisiorRepository.findHeadOfArea(anyDouble(), anyDouble(), anyString())).thenReturn(Optional.of(supervisor));
+        when(supervisiorRepository.findHeadOfArea(anyDouble(), anyDouble(), anyString()))
+                .thenReturn(Optional.of(supervisor));
         lenient().when(workerRepository.findScorableWorkers(supervisorId)).thenReturn(Collections.emptyList());
 
         // Act
@@ -128,7 +138,7 @@ public class NagarSetuLogicTests {
         issue.setLatitude(19.017615);
         issue.setLongitude(72.856164);
         issue.setCriticality(Criticality.HIGH);
-        issue.setIssueType(com.project.nagarSetu.util.enums.IssueType.ROAD);
+        issue.setIssueType(com.project.nagarSetu.util.enums.IssueType.INFRASTRUCTURE);
 
         Supervisior supervisor = new Supervisior();
         supervisor.setId(supervisorId);
@@ -137,20 +147,22 @@ public class NagarSetuLogicTests {
         // Construct 2 Scorable workers
         // Worker A: Very close but has high load
         WorkerScoringDto workerA = new WorkerScoringDto(
-            UUID.randomUUID(), "Worker A", 19.018, 72.857, LocalDateTime.now().minusHours(1), 0, 5L
-        );
-        
+                UUID.randomUUID(), "Worker A", 19.018, 72.857, LocalDateTime.now().minusHours(1), 0, 5L);
+
         // Worker B: A bit further but completely empty queue
         WorkerScoringDto workerB = new WorkerScoringDto(
-            workerId, "Worker B", 19.020, 72.860, LocalDateTime.now().minusDays(1), 0, 0L
-        );
+                workerId, "Worker B", 19.020, 72.860, LocalDateTime.now().minusDays(1), 0, 0L);
 
         when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
-        when(supervisiorRepository.findHeadOfArea(anyDouble(), anyDouble(), anyString())).thenReturn(Optional.of(supervisor));
+        when(supervisiorRepository.findHeadOfArea(anyDouble(), anyDouble(), anyString()))
+                .thenReturn(Optional.of(supervisor));
         when(workerRepository.findScorableWorkers(supervisorId)).thenReturn(Arrays.asList(workerA, workerB));
-        
-        Worker wEntity = new Worker(); wEntity.setId(workerB.getWorkerId());
-        User wUser = new User(); wUser.setEmail("w2@test.com"); wEntity.setUser(wUser);
+
+        Worker wEntity = new Worker();
+        wEntity.setId(workerB.getWorkerId());
+        User wUser = new User();
+        wUser.setEmail("w2@test.com");
+        wEntity.setUser(wUser);
         when(workerRepository.findById(workerB.getWorkerId())).thenReturn(Optional.of(wEntity));
 
         // Act
@@ -160,7 +172,8 @@ public class NagarSetuLogicTests {
         assertTrue(result);
         assertFalse(issue.isAdmin());
         assertNotNull(issue.getAssigned());
-        // Worker B has 0 active issues, heavily winning the load-balance formula despite being slightly further
+        // Worker B has 0 active issues, heavily winning the load-balance formula
+        // despite being slightly further
         assertTrue(issue.getAssigned().contains(wEntity));
         verify(issueRepository).save(issue);
     }
@@ -172,20 +185,29 @@ public class NagarSetuLogicTests {
         issue.setId(issueId);
         issue.setStages(Stages.IN_PROGRESS);
         issue.setCriticality(Criticality.MEDIUM);
-        
-        Supervisior sup = new Supervisior(); User sUser = new User(); sUser.setEmail("sup@test.com"); sup.setUser(sUser);
+
+        Supervisior sup = new Supervisior();
+        User sUser = new User();
+        sUser.setEmail("sup@test.com");
+        sup.setUser(sUser);
         issue.setSupervisior(sup);
-        
-        Worker w = new Worker(); User wUser = new User(); wUser.setEmail("w@test.com"); w.setUser(wUser);
+
+        Worker w = new Worker();
+        User wUser = new User();
+        wUser.setEmail("w@test.com");
+        w.setUser(wUser);
         issue.setAssigned(Set.of(w));
 
         MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getSize()).thenReturn(1024L);
+        when(file.getContentType()).thenReturn("image/png");
 
         when(issueRepository.findById(issueId)).thenReturn(Optional.of(issue));
         Map<String, String> cloudMap = new HashMap<>();
         cloudMap.put("secure_url", "https://cloudinary.test/img.png");
         cloudMap.put("format", "png");
-        when(imageService.saveImage(file, issueId)).thenReturn(cloudMap);
+        when(imageService.saveImage(eq(file), any(UUID.class))).thenReturn(cloudMap);
 
         // Act
         UUID resultId = issueService.doneIssue(issueId, file);
@@ -194,7 +216,9 @@ public class NagarSetuLogicTests {
         assertEquals(issueId, resultId);
         assertEquals(Stages.RESOLVED, issue.getStages(), "Issue must be set properly");
         assertNotNull(issue.getResolvedAt(), "Timestamp must be stamped");
-        assertEquals("https://cloudinary.test/img.png", issue.getSecureURL(), "Security URL MUST persist");
+        assertEquals("https://cloudinary.test/img.png", issue.getResolvedSecureURL(),
+                "Resolved image URL must persist");
+        assertEquals("png", issue.getResolvedFormat(), "Resolved image format must persist");
         verify(issueRepository).save(issue);
         // Expecting 2 events: Worker and Supervisor
         verify(eventPublisher, times(2)).publishEvent(any(Object.class));

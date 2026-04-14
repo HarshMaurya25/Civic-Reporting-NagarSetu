@@ -13,6 +13,7 @@ import com.project.nagarSetu.repository.IssueRepository;
 import com.project.nagarSetu.repository.IssueStageHistoryRepository;
 import com.project.nagarSetu.repository.SupervisiorRepository;
 import com.project.nagarSetu.repository.UserRepository;
+import com.project.nagarSetu.repository.WardRepository;
 import com.project.nagarSetu.repository.WorkerRepository;
 import com.project.nagarSetu.service.authenication.JwtService;
 import com.project.nagarSetu.service.authenication.UserDetail;
@@ -21,6 +22,8 @@ import com.project.nagarSetu.util.dto.authentication.LoginRequestDto;
 import com.project.nagarSetu.util.dto.authentication.RegistrationRequestDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetByUserDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetDto;
+import com.project.nagarSetu.util.dto.issue.IssueMatrixBucketDto;
+import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
 import com.project.nagarSetu.util.dto.user.GetWorkerForSupervisorDto;
 import com.project.nagarSetu.util.dto.worker.WorkerCreateResponse;
 import com.project.nagarSetu.util.dto.worker.WorkerLoginReponseDto;
@@ -61,6 +64,7 @@ public class SuperVisiorService {
 
     private final WorkerRepository workerRepository;
     private final IssueStageHistoryRepository issueStageHistoryRepository;
+    private final WardRepository wardRepository;
 
     private final String userName = "SUPERVISIOR_";
 
@@ -207,6 +211,46 @@ public class SuperVisiorService {
 
     public List<GetWorkerForSupervisorDto> getAllWorkersForSupervisior(UUID supervisiorId) {
         return workerRepository.findTheWorker(supervisiorId);
+    }
+
+    @Transactional
+    public IssueMatrixSummaryDto getIssueMatrixSummary(UUID supervisorId, UUID wardId) {
+        UUID effectiveWardId = wardId;
+        if (effectiveWardId == null && supervisorId != null) {
+            effectiveWardId = wardRepository.findBySupervisor_Id(supervisorId)
+                    .map(com.project.nagarSetu.entity.Ward::getId)
+                    .orElse(null);
+        }
+
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        String wardFilter = effectiveWardId == null ? null : effectiveWardId.toString();
+
+        return IssueMatrixSummaryDto.builder()
+                .wardId(effectiveWardId)
+                .daily(buildIssueMatrixBucket("daily", wardFilter, now.minusDays(1), now))
+                .weekly(buildIssueMatrixBucket("weekly", wardFilter, now.minusWeeks(1), now))
+                .monthly(buildIssueMatrixBucket("monthly", wardFilter, now.minusMonths(1), now))
+                .build();
+    }
+
+    private IssueMatrixBucketDto buildIssueMatrixBucket(String period, String wardFilter,
+            java.time.LocalDateTime since, java.time.LocalDateTime until) {
+        long reported = safeCount(issueRepository.countReportedIssues(wardFilter, since, until));
+        long solved = safeCount(issueRepository.countSolvedIssues(wardFilter, since, until));
+        long inBetween = safeCount(issueRepository.countInBetweenIssues(wardFilter, since, until));
+
+        return IssueMatrixBucketDto.builder()
+                .period(period)
+                .from(since)
+                .to(until)
+                .reported(reported)
+                .solved(solved)
+                .inBetween(inBetween)
+                .build();
+    }
+
+    private long safeCount(Long count) {
+        return count == null ? 0L : count;
     }
 
 }

@@ -152,7 +152,31 @@ public class WorkerService {
             throw new IllegalArgumentException("workerId is required");
         workerRepository.findById(workerId)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Worker not found"));
-        return issueRepository.getAssignedOpenIssues(workerId);
+        
+        java.util.List<IssueForWorkerDto> issues = issueRepository.getAssignedOpenIssues(workerId);
+        
+        // Sorting by "score" combining starvation and criticality
+        issues.sort((i1, i2) -> {
+            return Double.compare(calculateIssueScore(i2), calculateIssueScore(i1));
+        });
+        
+        return issues;
+    }
+
+    private double calculateIssueScore(IssueForWorkerDto dto) {
+        double score = 0;
+        if (dto.getCriticality() != null) {
+            score += switch (dto.getCriticality()) {
+                case HIGH -> 100.0;
+                case MEDIUM -> 50.0;
+                case LOW -> 10.0;
+            };
+        }
+        if (dto.getCreateAt() != null) {
+            long hoursElapsed = java.time.Duration.between(dto.getCreateAt(), LocalDateTime.now()).toHours();
+            score += Math.max(0, hoursElapsed * 5.0); // 5 points for every hour of starvation
+        }
+        return score;
     }
 
     public Boolean startIssue(java.util.UUID workerId, java.util.UUID issueId) {
@@ -299,12 +323,12 @@ public class WorkerService {
             }
         }
 
-        Map<String, String> map = imageService.saveImage(file, issue.getId());
-
-        issue.setSecureURL(map.get("secure_url").toString());
-        issue.setFormat(map.get("format").toString());
+        Map<String, String> map = imageService.saveImage(file, UUID.randomUUID());
 
         if (dto.getStages() == Stages.RESOLVED) {
+            issue.setResolvedSecureURL(map.get("secure_url").toString());
+            issue.setResolvedFormat(map.get("format").toString());
+
             issue.setResolvedAt(LocalDateTime.now());
             if (issue.getTargetResolutionMinutes() != null && issue.getCreateAt() != null
                     && issue.getResolvedAt() != null) {

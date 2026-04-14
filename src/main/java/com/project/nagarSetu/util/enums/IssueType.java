@@ -1,5 +1,10 @@
 package com.project.nagarSetu.util.enums;
 
 public enum IssueType {
-    ROAD, WATER , GARBAGE, VEHICLE, STREETLIGHT, OTHER
+    POTHOLE,
+    DRAINAGE_SEWER,
+    WASTE_MANAGEMENT,
+    INFRASTRUCTURE,
+    ENCROACHMENT,
+    OTHER
 }

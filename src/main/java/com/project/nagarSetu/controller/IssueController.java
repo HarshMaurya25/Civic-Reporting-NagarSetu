@@ -29,9 +29,9 @@ public class IssueController {
 
     @PostMapping("/create")
     public ResponseEntity<UUID> createIssue(
-            @Validated @RequestPart IssueCreateDto issueCreateDto,
-            @RequestPart MultipartFile image) {
-        UUID issueID = issueService.createIssue(issueCreateDto, image);
+            @Validated @RequestPart("issueCreateDto") IssueCreateDto issueCreateDto,
+            @RequestPart(value = "images", required = false) java.util.List<MultipartFile> images) {
+        UUID issueID = issueService.createIssue(issueCreateDto, images);
         return new ResponseEntity<>(issueID, HttpStatus.CREATED);
     }
 
@@ -40,6 +40,13 @@ public class IssueController {
             @RequestParam UUID id,
             @RequestPart("file") MultipartFile file) {
         return new ResponseEntity<>(issueService.doneIssue(id, file), HttpStatus.OK);
+    }
+
+    @GetMapping("/solved")
+    public ResponseEntity<Page<com.project.nagarSetu.util.dto.issue.IssueSolvedDto>> getSolvedIssuesWithImage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(issueService.getSolvedIssuesWithImage(page, size));
     }
 
     @GetMapping("/{id}")
@@ -70,8 +77,8 @@ public class IssueController {
 
     @PreAuthorize("hasRole('SUPERVISOR')")
     @GetMapping("/map/supervisor")
-    public ResponseEntity<Set<IssueByMap>> getIssueMapForSupervisor(@RequestParam UUID supervisorId) {
-        Set<IssueByMap> issueMap = issueService.getIssueMapForSupervisor(supervisorId);
+    public ResponseEntity<Set<IssueByMap>> getIssueMapForSupervisor(@RequestParam UUID wardId) {
+        Set<IssueByMap> issueMap = issueService.getIssueMapForSupervisor(wardId);
         if (issueMap == null || issueMap.isEmpty())
             return ResponseEntity.noContent().build();
         return ResponseEntity.ok(issueMap);
@@ -98,8 +105,7 @@ public class IssueController {
     @GetMapping("/recent")
     public ResponseEntity<Page<IssueRecent>> getRecentIssues(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
+            @RequestParam(defaultValue = "10") int size) {
         Page<IssueRecent> recentIssues = issueService.getRecentIssue(page, size);
         return ResponseEntity.ok(recentIssues);
     }
@@ -115,18 +121,31 @@ public class IssueController {
 
     @GetMapping("/{issueId}/worker")
     public ResponseEntity<GetIssueWorkker> getIssueWorker(
-            @PathVariable UUID issueId
-    ) {
+            @PathVariable UUID issueId) {
         return ResponseEntity.ok(issueService.getIssueWorker(issueId));
     }
 
     @PutMapping("/{issueId}/reassign/{workerId}")
     public ResponseEntity<Void> reassignIssue(
             @PathVariable UUID issueId,
-            @PathVariable UUID workerId
-    ) {
+            @PathVariable UUID workerId) {
         issueService.reassignIssue(issueId, workerId);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/upvote")
+    public ResponseEntity<Boolean> upvoteIssue(
+            @PathVariable UUID id,
+            @RequestParam UUID userId) {
+        return ResponseEntity.ok(issueService.upvoteIssue(id, userId));
+    }
+
+    @GetMapping("/nearby")
+    public ResponseEntity<java.util.List<IssueGetDto>> getNearbyIssues(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam com.project.nagarSetu.util.enums.IssueType category) {
+        return ResponseEntity.ok(issueService.getNearbyUnresolvedIssues(latitude, longitude, category));
     }
 
 }

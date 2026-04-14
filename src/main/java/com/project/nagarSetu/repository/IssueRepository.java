@@ -7,6 +7,9 @@ import com.project.nagarSetu.util.dto.issue.IssueGetByUserDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetDto;
 import com.project.nagarSetu.util.dto.issue.IssueRecent;
 import com.project.nagarSetu.util.dto.issue.IssueForWorkerDto;
+import com.project.nagarSetu.util.dto.issue.IssueMatrixBucketDto;
+import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
+import com.project.nagarSetu.util.dto.issue.IssueSolvedDto;
 import com.project.nagarSetu.util.dto.user.UserLeaderboardDto;
 import com.project.nagarSetu.util.dto.user.UserMatrixDto;
 import org.springframework.data.domain.Page;
@@ -52,14 +55,18 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
 
         @Query("SELECT new com.project.nagarSetu.util.dto.user.UserLeaderboardDto(" +
                         "  u.fullName, " +
-                        "  COUNT(CASE WHEN i.stages IN ('PENDING', 'ACKNOWLEDGED', 'TEAM_ASSIGNED', 'IN_PROGRESS', 'RESOLVED') THEN 1 END) "
-                        +
+                        "  COUNT(DISTINCT i.id) " +
                         ") " +
                         "FROM Issue i " +
-                        "JOIN i.submittedBy u " +
-                        "GROUP BY u.id " +
-                        "ORDER BY COUNT(CASE WHEN i.stages IN ('PENDING', 'ACKNOWLEDGED', 'TEAM_ASSIGNED', 'IN_PROGRESS', 'RESOLVED') THEN 1 END) DESC")
+                        "LEFT JOIN i.upvoters upv " +
+                        "JOIN User u ON u.id = i.submittedBy.id OR u.id = upv.id " +
+                        "WHERE i.stages IN ('PENDING', 'ACKNOWLEDGED', 'TEAM_ASSIGNED', 'IN_PROGRESS', 'RESOLVED') " +
+                        "GROUP BY u.id, u.fullName " +
+                        "ORDER BY COUNT(DISTINCT i.id) DESC")
         List<UserLeaderboardDto> getLeaderBoard(Pageable pageable);
+
+        @Query("SELECT i FROM Issue i WHERE i.stages != 'RESOLVED' AND i.issueType = :category")
+        List<Issue> findUnresolvedByCategory(@Param("category") com.project.nagarSetu.util.enums.IssueType category);
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueGetByUserDto(" +
                         "  i.id, i.title, i.location, i.stages, i.createAt, i.criticality, i.issueType" +
@@ -85,6 +92,34 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
                         ") FROM Issue i ORDER BY COALESCE(i.resolvedAt, i.createAt) DESC")
         Page<IssueRecent> getRecentIssue(Pageable pageable);
 
+        @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueSolvedDto(" +
+                        "i.id, i.title, i.issueType, i.criticality, i.location, i.stages, i.submittedBy.fullName, " +
+                        "i.createAt, i.resolvedAt, i.secureURL, i.resolvedSecureURL" +
+                        ") FROM Issue i WHERE i.stages = 'RESOLVED' AND i.resolvedSecureURL IS NOT NULL " +
+                        "ORDER BY COALESCE(i.resolvedAt, i.createAt) DESC")
+        Page<IssueSolvedDto> getSolvedIssuesWithImage(Pageable pageable);
+
+        @Query("SELECT COUNT(i) FROM Issue i WHERE (:wardId IS NULL OR i.wardId = :wardId) " +
+                        "AND i.createAt >= :since AND i.createAt < :until")
+        Long countReportedIssues(@Param("wardId") String wardId, @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("SELECT COUNT(i) FROM Issue i WHERE (:wardId IS NULL OR i.wardId = :wardId) " +
+                        "AND i.stages = 'RESOLVED' AND i.resolvedAt >= :since AND i.resolvedAt < :until")
+        Long countSolvedIssues(@Param("wardId") String wardId, @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("SELECT COUNT(i) FROM Issue i WHERE i.wardId = :wardId AND i.stages <> 'RESOLVED'")
+        Long countUnresolvedByWardId(@Param("wardId") String wardId);
+
+        @Query("SELECT COUNT(i) FROM Issue i WHERE i.stages = 'RESOLVED'")
+        Long countResolvedIssues();
+
+        @Query("SELECT COUNT(i) FROM Issue i WHERE (:wardId IS NULL OR i.wardId = :wardId) " +
+                        "AND i.createAt >= :since AND i.createAt < :until AND i.stages <> 'RESOLVED'")
+        Long countInBetweenIssues(@Param("wardId") String wardId, @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueStageCountDto(i.stages, COUNT(i)) " +
                         "FROM Issue i WHERE i.createAt >= :since GROUP BY i.stages")
         java.util.List<com.project.nagarSetu.util.dto.issue.IssueStageCountDto> getIssueCountSinceGroupedByStage(
@@ -100,8 +135,8 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueByMap(" +
                         "i.id, i.latitude, i.longitude, i.criticality, i.stages, i.issueType) " +
-                        "FROM Issue i WHERE i.supervisior.id = :supervisorId")
-        java.util.Set<IssueByMap> getIssueMapForSupervisor(@Param("supervisorId") java.util.UUID supervisorId);
+                        "FROM Issue i WHERE i.wardId = :wardId")
+        java.util.Set<IssueByMap> getIssueMapForSupervisor(@Param("wardId") String wardId);
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueByMap(" +
                         "i.id, i.latitude, i.longitude, i.criticality, i.stages, i.issueType) " +
@@ -113,15 +148,15 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
                         "FROM Issue i")
         java.util.Set<IssueByMap> getAllIssueMap();
 
-    @Query("""
-    SELECT w FROM Worker w
-    JOIN w.issues i
-    WHERE i.id = :issueId
-""")
+        @Query("""
+                            SELECT w FROM Worker w
+                            JOIN w.issues i
+                            WHERE i.id = :issueId
+                        """)
         List<Worker> findWorkersByIssueId(@Param("issueId") UUID issueId);
 
         List<Issue> findBySupervisiorIdAndAdminTrue(UUID supervisiorId);
-        
+
         @Query("SELECT i FROM Issue i WHERE i.supervisior.id = :supervisiorId AND i.stages != 'RESOLVED'")
         List<Issue> findPendingIssuesBySupervisorId(@Param("supervisiorId") UUID supervisiorId);
 }
