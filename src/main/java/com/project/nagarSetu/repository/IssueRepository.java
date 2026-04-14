@@ -159,4 +159,6 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
 
         @Query("SELECT i FROM Issue i WHERE i.supervisior.id = :supervisiorId AND i.stages != 'RESOLVED'")
         List<Issue> findPendingIssuesBySupervisorId(@Param("supervisiorId") UUID supervisiorId);
+
+        List<Issue> findByCreateAtAfter(LocalDateTime date);
 }
