@@ -57,7 +57,9 @@ public class SecurityConfig {
                                         "/api/issue/**",
                                         "/api/worker/**",
                                         "/api/supervisior/**",
-                                        "/actuator/prometheus")
+                                        "/actuator/prometheus",
+                                        "/public/**",
+                                        "/api/**")
                                 .permitAll()
                                 .requestMatchers("/connect/**").permitAll()
                                 .anyRequest().authenticated())

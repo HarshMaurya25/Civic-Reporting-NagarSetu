@@ -47,4 +47,19 @@ public class WardController {
     public ResponseEntity<Map<String, Object>> exportGeoJson() {
         return ResponseEntity.ok(wardService.exportGeoJson());
     }
+
+    @DeleteMapping("/name/{name}")
+    public ResponseEntity<String> deleteWardByName(@PathVariable String name) {
+        try {
+            boolean deleted = wardService.deleteWardByName(name);
+            if (!deleted) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok("Ward deleted successfully");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Failed to delete ward: " + e.getMessage());
+        }
+    }
 }

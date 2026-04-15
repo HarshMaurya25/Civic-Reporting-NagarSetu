@@ -169,4 +169,14 @@ public class WardService {
 
         return featureCollection;
     }
+
+    @Transactional
+    public boolean deleteWardByName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Ward name is required");
+        }
+
+        long deletedCount = wardRepository.deleteByNameIgnoreCase(name.trim());
+        return deletedCount > 0;
+    }
 }

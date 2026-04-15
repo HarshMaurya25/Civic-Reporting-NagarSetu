@@ -294,8 +294,10 @@ public class AdminService {
 
                 // If supervisor is already linked to another ward, unlink it first
                 wardRepository.findBySupervisor_Id(supervisorId).ifPresent(oldWard -> {
-                        oldWard.setSupervisor(null);
-                        wardRepository.save(oldWard);
+                        if (!oldWard.getId().equals(wardId)) {
+                                oldWard.setSupervisor(null);
+                                wardRepository.saveAndFlush(oldWard);
+                        }
                 });
 
                 ward.setSupervisor(supervisior);

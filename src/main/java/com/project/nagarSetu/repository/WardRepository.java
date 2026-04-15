@@ -17,6 +17,8 @@ public interface WardRepository extends JpaRepository<Ward, UUID> {
 
     Optional<Ward> findByNameIgnoreCase(String name);
 
+    long deleteByNameIgnoreCase(String name);
+
     // Find ward containing the given point
     @Query("SELECT w FROM Ward w WHERE within(:point, w.boundary) = true")
     Optional<Ward> findWardByLocation(@Param("point") Point point);
