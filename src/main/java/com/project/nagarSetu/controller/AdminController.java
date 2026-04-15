@@ -1,5 +1,6 @@
 package com.project.nagarSetu.controller;
 
+import com.project.nagarSetu.entity.Worker;
 import com.project.nagarSetu.service.admin.AdminService;
 import com.project.nagarSetu.util.dto.admin.AdminWorkerDto;
 import com.project.nagarSetu.util.dto.worker.WorkerCreateResponse;
@@ -17,6 +18,8 @@ import com.project.nagarSetu.util.dto.admin.AdminUserDto;
 import com.project.nagarSetu.util.dto.admin.AdminStatsOverviewDto;
 import com.project.nagarSetu.util.dto.admin.UserBasicDetailDto;
 import com.project.nagarSetu.util.dto.admin.WardDetailDto;
+import com.project.nagarSetu.util.dto.issue.IssueStageMatrixDto;
+import com.project.nagarSetu.util.dto.issue.WardMatrixRowDto;
 
 @RestController
 @AllArgsConstructor
@@ -108,6 +111,18 @@ public class AdminController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/workers/simple")
+    public ResponseEntity<List<com.project.nagarSetu.util.dto.admin.SimpleWorkerDto>> getAllWorkersSimple() {
+        return new ResponseEntity<>(adminService.getAllWorkersSimple(), HttpStatus.OK);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/workers/debug")
+    public ResponseEntity<List<Worker>> getAllWorkersDebug() {
+        return new ResponseEntity<>(adminService.getAllWorkersRaw(), HttpStatus.OK);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/users/supervisors/{supervisorId}/detail")
     public ResponseEntity<UserBasicDetailDto> getSupervisorDetail(@PathVariable UUID supervisorId) {
         return ResponseEntity.ok(adminService.getSupervisorDetail(supervisorId));
@@ -152,17 +167,38 @@ public class AdminController {
         return ResponseEntity.ok(stats);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/issues/stats/matrix")
     public ResponseEntity<IssueMatrixSummaryDto> getIssueMatrixForAdmin(
             @RequestParam(required = false) UUID wardId) {
         return ResponseEntity.ok(adminService.getIssueMatrixSummary(wardId));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/stats/overview")
     public ResponseEntity<AdminStatsOverviewDto> getAdminOverviewStats() {
         return ResponseEntity.ok(adminService.getAdminOverviewStats());
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/issues/stats/matrix/stages")
+    public ResponseEntity<List<IssueStageMatrixDto>> getStageMatrix(
+            @RequestParam(required = false) UUID wardId,
+            @RequestParam(defaultValue = "7") int days) {
+        return ResponseEntity.ok(adminService.getStageMatrix(wardId, days));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/issues/stats/matrix/wards")
+    public ResponseEntity<List<WardMatrixRowDto>> getWardMatrix(
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(adminService.getWardMatrix(days));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/issues/stats/matrix/sla-breaches")
+    public ResponseEntity<Long> getSlaBreaches(
+            @RequestParam(required = false) UUID wardId,
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(adminService.getSlaBreachedCount(wardId, days));
     }
 
     @GetMapping("/wards/{wardId}/issues/stats/matrix")

@@ -15,15 +15,24 @@ import java.util.UUID;
 public interface WorkerRepository extends JpaRepository<Worker, UUID> {
 
     @Query("SELECT new com.project.nagarSetu.util.dto.admin.AdminUserDto(" +
-            "w.id, w.user.fullName, w.user.createdAt, w.user.location, w.started, " +
-            "s.id, s.user.fullName, wd.id, wd.name) " +
-            "FROM Worker w LEFT JOIN w.supervisior s LEFT JOIN Ward wd ON wd.supervisor.id = s.id")
+            "w.id, u.fullName, u.createdAt, u.location, w.started, " +
+            "s.id, su.fullName, wd.id, wd.name) " +
+            "FROM Worker w " +
+            "LEFT JOIN w.user u " +
+            "LEFT JOIN w.supervisior s " +
+            "LEFT JOIN s.user su " +
+            "LEFT JOIN Ward wd ON wd.supervisor.id = s.id")
     List<AdminUserDto> findAllWorker();
 
     @Query("SELECT new com.project.nagarSetu.util.dto.admin.AdminUserDto(" +
-            "w.id, w.user.fullName, w.user.createdAt, w.user.location, w.started, " +
-            "s.id, s.user.fullName, wd.id, wd.name) " +
-            "FROM Worker w LEFT JOIN w.supervisior s LEFT JOIN Ward wd ON wd.supervisor.id = s.id WHERE w.started = false")
+            "w.id, u.fullName, u.createdAt, u.location, w.started, " +
+            "s.id, su.fullName, wd.id, wd.name) " +
+            "FROM Worker w " +
+            "LEFT JOIN w.user u " +
+            "LEFT JOIN w.supervisior s " +
+            "LEFT JOIN s.user su " +
+            "LEFT JOIN Ward wd ON wd.supervisor.id = s.id " +
+            "WHERE w.started = false")
     List<AdminUserDto> findAllWorkerNoStart();
 
     @Query("SELECT new com.project.nagarSetu.util.dto.admin.WorkerAssignmentDto(w.id, w.user.fullName, COUNT(i)) " +
@@ -78,5 +87,27 @@ public interface WorkerRepository extends JpaRepository<Worker, UUID> {
             """)
     List<com.project.nagarSetu.util.dto.issue.WorkerScoringDto> findScorableWorkers(
             @Param("supervisorId") UUID supervisorId);
+
+    @Query("SELECT w FROM Worker w")
+    List<Worker> findAllWorkersRaw();
+
+    @Query("""
+            SELECT new com.project.nagarSetu.util.dto.admin.SimpleWorkerDto(
+                w.id,
+                u.fullName,
+                u.email,
+                u.phoneNumber,
+                u.location,
+                w.started,
+                u.createdAt,
+                s.id,
+                su.fullName
+            )
+            FROM Worker w
+            LEFT JOIN w.user u
+            LEFT JOIN w.supervisior s
+            LEFT JOIN s.user su
+            """)
+    List<com.project.nagarSetu.util.dto.admin.SimpleWorkerDto> findAllWorkersSimple();
 
 }

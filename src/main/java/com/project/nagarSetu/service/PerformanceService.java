@@ -1,7 +1,9 @@
 package com.project.nagarSetu.service;
 
 import com.project.nagarSetu.entity.Issue;
+import com.project.nagarSetu.entity.Ward;
 import com.project.nagarSetu.repository.IssueRepository;
+import com.project.nagarSetu.repository.WardRepository;
 import com.project.nagarSetu.util.dto.WardPerformanceDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,9 @@ public class PerformanceService {
     @Autowired
     private IssueRepository issueRepository;
 
+    @Autowired
+    private WardRepository wardRepository;
+
     public List<WardPerformanceDto> getTopPerformingWards() {
         LocalDateTime oneYearAgo = LocalDateTime.now().minusYears(1);
         List<Issue> issues = issueRepository.findByCreateAtAfter(oneYearAgo);
@@ -26,6 +31,9 @@ public class PerformanceService {
                 .map(entry -> {
                     String wardId = entry.getKey();
                     List<Issue> wardIssues = entry.getValue();
+                    if (wardId == null || wardId.isBlank()) {
+                        return null;
+                    }
                     long totalIssues = wardIssues.size();
                     long resolvedIssues = wardIssues.stream().filter(issue -> issue.getResolvedAt() != null).count();
                     double resolutionRate = totalIssues == 0 ? 0 : (double) resolvedIssues / totalIssues;
@@ -60,16 +68,21 @@ public class PerformanceService {
                             - (reopenedIssues * 5)
                             + (feedbackScore * 2.5);
 
-                    String supervisorName = wardIssues.stream()
-                            .map(Issue::getSupervisior)
-                            .filter(supervisior -> supervisior != null && supervisior.getUser() != null)
-                            .map(supervisior -> supervisior.getUser().getFullName())
-                            .filter(name -> name != null && !name.isBlank())
-                            .findFirst()
-                            .orElse("N/A");
+                    Ward ward = null;
+                    try {
+                        ward = wardRepository.findById(java.util.UUID.fromString(wardId)).orElse(null);
+                    } catch (Exception ignored) {
+                        ward = null;
+                    }
 
-                    return new WardPerformanceDto(wardId, supervisorName, points);
+                    String wardName = ward != null ? ward.getName() : wardId;
+                    String supervisorName = (ward != null && ward.getSupervisor() != null && ward.getSupervisor().getUser() != null)
+                            ? ward.getSupervisor().getUser().getFullName()
+                            : "N/A";
+
+                    return new WardPerformanceDto(wardId, wardName, supervisorName, points);
                 })
+                .filter(java.util.Objects::nonNull)
                 .sorted((a, b) -> Double.compare(b.getPoints(), a.getPoints()))
                 .limit(10)
                 .collect(Collectors.toList());

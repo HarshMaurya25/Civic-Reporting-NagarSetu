@@ -57,6 +57,11 @@ public class SecurityConfig {
                                         "/api/issue/**",
                                         "/api/worker/**",
                                         "/api/supervisior/**",
+                                        "/api/performance/**",
+                                        "/api/public/dummy/**",
+                                        "/api/user/getLeaderboard",
+                                        "/api/admin/stats/overview",
+                                        "/api/admin/issues/stats/matrix",
                                         "/actuator/prometheus")
                                 .permitAll()
                                 .requestMatchers("/connect/**").permitAll()

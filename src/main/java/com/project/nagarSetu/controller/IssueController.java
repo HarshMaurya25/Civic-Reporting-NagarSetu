@@ -148,4 +148,16 @@ public class IssueController {
         return ResponseEntity.ok(issueService.getNearbyUnresolvedIssues(latitude, longitude, category));
     }
 
+    // Public: Ward-wide matrix summary (daily/weekly/monthly)
+    @GetMapping("/stats/matrix/ward")
+    public ResponseEntity<IssueMatrixSummaryDto> getWardMatrix(@RequestParam UUID wardId) {
+        return ResponseEntity.ok(issueService.getWardMatrixSummary(wardId));
+    }
+
+    // Public: Worker assignment matrix (daily/weekly/monthly for assigned issues)
+    @GetMapping("/stats/matrix/worker")
+    public ResponseEntity<WorkerMatrixSummaryDto> getWorkerMatrix(@RequestParam UUID workerId) {
+        return ResponseEntity.ok(issueService.getWorkerMatrixSummary(workerId));
+    }
+
 }

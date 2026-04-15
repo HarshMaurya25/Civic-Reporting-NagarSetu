@@ -304,6 +304,69 @@ public class IssueService {
     }
 
     @Transactional
+    public IssueMatrixSummaryDto getWardMatrixSummary(UUID wardId) {
+        if (wardId == null) {
+            throw new IllegalArgumentException("wardId is required");
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        String wardFilter = wardId.toString();
+        return IssueMatrixSummaryDto.builder()
+                .wardId(wardId)
+                .daily(buildWardMatrixBucket("daily", wardFilter, now.minusDays(1), now))
+                .weekly(buildWardMatrixBucket("weekly", wardFilter, now.minusWeeks(1), now))
+                .monthly(buildWardMatrixBucket("monthly", wardFilter, now.minusMonths(1), now))
+                .build();
+    }
+
+    @Transactional
+    public WorkerMatrixSummaryDto getWorkerMatrixSummary(UUID workerId) {
+        if (workerId == null) {
+            throw new IllegalArgumentException("workerId is required");
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        return WorkerMatrixSummaryDto.builder()
+                .workerId(workerId)
+                .daily(buildWorkerMatrixBucket("daily", workerId, now.minusDays(1), now))
+                .weekly(buildWorkerMatrixBucket("weekly", workerId, now.minusWeeks(1), now))
+                .monthly(buildWorkerMatrixBucket("monthly", workerId, now.minusMonths(1), now))
+                .build();
+    }
+
+    private IssueMatrixBucketDto buildWorkerMatrixBucket(String period, UUID workerId,
+            java.time.LocalDateTime since, java.time.LocalDateTime until) {
+        long reported = safeCount(issueRepository.countAssignedIssues(workerId, since, until));
+        long solved = safeCount(issueRepository.countAssignedSolved(workerId, since, until));
+        long inBetween = safeCount(issueRepository.countAssignedInBetween(workerId, since, until));
+        return IssueMatrixBucketDto.builder()
+                .period(period)
+                .from(since)
+                .to(until)
+                .reported(reported)
+                .solved(solved)
+                .inBetween(inBetween)
+                .build();
+    }
+
+    private IssueMatrixBucketDto buildWardMatrixBucket(String period, String wardId,
+            java.time.LocalDateTime since, java.time.LocalDateTime until) {
+        long reported = safeCount(issueRepository.countReportedIssues(wardId, since, until));
+        long solved = safeCount(issueRepository.countSolvedIssues(wardId, since, until));
+        long inBetween = safeCount(issueRepository.countInBetweenIssues(wardId, since, until));
+        return IssueMatrixBucketDto.builder()
+                .period(period)
+                .from(since)
+                .to(until)
+                .reported(reported)
+                .solved(solved)
+                .inBetween(inBetween)
+                .build();
+    }
+
+    private long safeCount(Long count) {
+        return count == null ? 0L : count;
+    }
+
+    @Transactional
     public boolean assignWorkerSmartLogic(Issue issue) {
         if (issue == null) {
             throw new IllegalArgumentException("issue is required");
@@ -605,16 +668,47 @@ public class IssueService {
         Worker newWorker = workerRepository.findById(newWorkerId)
                 .orElseThrow(() -> new UsernameNotFoundException("Worker not found"));
 
-        List<Worker> currentWorkers = Collections.singletonList(workerRepository.findWorkersByIssueId(issueId));
+        // Current assignees (owning side is Worker.issues)
+        List<Worker> currentWorkers = issueRepository.findWorkersByIssueId(issueId);
+        UUID fromWorkerId = null;
 
-        for (Worker worker : currentWorkers) {
-            worker.getIssues().remove(issue);
+        if (currentWorkers != null && !currentWorkers.isEmpty()) {
+            for (Worker worker : currentWorkers) {
+                if (worker == null) {
+                    continue;
+                }
+                if (fromWorkerId == null) {
+                    fromWorkerId = worker.getId();
+                }
+                if (worker.getIssues() != null) {
+                    worker.getIssues().remove(issue);
+                }
+            }
+            workerRepository.saveAll(currentWorkers);
         }
 
+        if (newWorker.getIssues() == null) {
+            newWorker.setIssues(new java.util.HashSet<>());
+        }
         newWorker.getIssues().add(issue);
-
-        workerRepository.saveAll(currentWorkers);
+        newWorker.setLastAssignedAt(LocalDateTime.now());
+        newWorker.setLifetimeAssignments(
+                (newWorker.getLifetimeAssignments() == null ? 0 : newWorker.getLifetimeAssignments()) + 1);
         workerRepository.save(newWorker);
+
+        // keep issue metadata consistent
+        issue.setAdmin(false);
+        issue.setSupervisior(newWorker.getSupervisior());
+        com.project.nagarSetu.util.enums.Stages previousStage = issue.getStages();
+        issue.setStages(com.project.nagarSetu.util.enums.Stages.TEAM_ASSIGNED);
+        stampStageTimestamp(issue, com.project.nagarSetu.util.enums.Stages.TEAM_ASSIGNED);
+        recordStageTransition(issue, previousStage, com.project.nagarSetu.util.enums.Stages.TEAM_ASSIGNED,
+                "SYSTEM", null, "Manual reassignment via /api/issue/{issueId}/reassign/{workerId}");
+        recordAssignmentTransition(issue, fromWorkerId, newWorker.getId(),
+                issue.getSupervisior() != null ? issue.getSupervisior().getId() : null,
+                "MANUAL_REASSIGN", null);
+
+        issueRepository.save(issue);
     }
 
     @Transactional

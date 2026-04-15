@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
       tags:
-        - magician05/nagar-setu:v7
-    image: magician05/nagar-setu:v7
+        - magician05/nagar-setu:v711
+    image: magician05/nagar-setu:v711
     container_name: nagarsetu
     environment:
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}

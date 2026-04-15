@@ -5,7 +5,9 @@ import com.project.nagarSetu.util.dto.authentication.LoginRequestDto;
 import com.project.nagarSetu.util.dto.authentication.RegistrationRequestDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetByUserDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetDto;
+import com.project.nagarSetu.util.dto.issue.IssueStageMatrixDto;
 import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
+import com.project.nagarSetu.util.dto.issue.WardMatrixRowDto;
 import com.project.nagarSetu.util.dto.user.GetWorkerForSupervisorDto;
 import com.project.nagarSetu.util.dto.worker.WorkerCreateResponse;
 import com.project.nagarSetu.util.dto.worker.WorkerLoginReponseDto;
@@ -68,6 +70,30 @@ public class SuperVisiorController {
             @RequestParam UUID supervisorId,
             @RequestParam(required = false) UUID wardId) {
         return ResponseEntity.ok(service.getIssueMatrixSummary(supervisorId, wardId));
+    }
+
+    @PreAuthorize("hasRole('SUPERVISOR')")
+    @GetMapping("/issues/stats/matrix/wards")
+    public ResponseEntity<List<WardMatrixRowDto>> getWardWiseMatrix(
+            @RequestParam UUID supervisorId,
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(service.getWardWiseMatrix(supervisorId, days));
+    }
+
+    @PreAuthorize("hasRole('SUPERVISOR')")
+    @GetMapping("/issues/stats/matrix/stages")
+    public ResponseEntity<List<IssueStageMatrixDto>> getStageMatrix(
+            @RequestParam UUID supervisorId,
+            @RequestParam(defaultValue = "7") int days) {
+        return ResponseEntity.ok(service.getStageMatrixForSupervisor(supervisorId, days));
+    }
+
+    @PreAuthorize("hasRole('SUPERVISOR')")
+    @GetMapping("/issues/stats/matrix/sla-breaches")
+    public ResponseEntity<Long> getSlaBreaches(
+            @RequestParam UUID supervisorId,
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(service.getSlaBreachedForSupervisor(supervisorId, days));
     }
 
     @GetMapping("/{supervisiorId}/workers")

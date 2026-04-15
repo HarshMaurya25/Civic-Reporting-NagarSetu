@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class WardPerformanceDto {
+    private String wardId;
     private String wardName;
     private String supervisorName;
     private double points;

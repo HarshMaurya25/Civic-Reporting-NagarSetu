@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.locationtech.jts.geom.Polygon;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -27,6 +28,10 @@ public class Ward {
     @Column(nullable = false, unique = true)
     private String name;
 
+    // Keep nullable for existing DB rows when ddl-auto=update.
+    @Column(nullable = true)
+    private LocalDateTime createdAt;
+
     @Column(columnDefinition = "geometry(Polygon,4326)", nullable = false)
     private Polygon boundary;
 
@@ -38,6 +43,13 @@ public class Ward {
     private Supervisior supervisor;
 
     @PrePersist
+    public void atCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        normalizeData();
+    }
+
     @PreUpdate
     public void normalizeData() {
         if (this.name != null) {

@@ -10,6 +10,8 @@ import com.project.nagarSetu.util.dto.issue.IssueForWorkerDto;
 import com.project.nagarSetu.util.dto.issue.IssueMatrixBucketDto;
 import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
 import com.project.nagarSetu.util.dto.issue.IssueSolvedDto;
+import com.project.nagarSetu.util.dto.issue.IssueStageMatrixDto;
+import com.project.nagarSetu.util.dto.issue.WardMatrixRowDto;
 import com.project.nagarSetu.util.dto.user.UserLeaderboardDto;
 import com.project.nagarSetu.util.dto.user.UserMatrixDto;
 import org.springframework.data.domain.Page;
@@ -118,6 +120,79 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
         @Query("SELECT COUNT(i) FROM Issue i WHERE (:wardId IS NULL OR i.wardId = :wardId) " +
                         "AND i.createAt >= :since AND i.createAt < :until AND i.stages <> 'RESOLVED'")
         Long countInBetweenIssues(@Param("wardId") String wardId, @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("SELECT COUNT(i) FROM Issue i WHERE (:wardId IS NULL OR i.wardId = :wardId) " +
+                        "AND i.slaBreached = true AND i.createAt >= :since AND i.createAt < :until")
+        Long countSlaBreached(@Param("wardId") String wardId, @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("""
+                        SELECT COUNT(i)
+                        FROM Issue i
+                        JOIN i.assigned w
+                        WHERE w.id = :workerId
+                          AND i.createAt >= :since AND i.createAt < :until
+                        """)
+        Long countAssignedIssues(@Param("workerId") UUID workerId,
+                        @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("""
+                        SELECT COUNT(i)
+                        FROM Issue i
+                        JOIN i.assigned w
+                        WHERE w.id = :workerId
+                          AND i.stages = com.project.nagarSetu.util.enums.Stages.RESOLVED
+                          AND i.resolvedAt IS NOT NULL
+                          AND i.resolvedAt >= :since AND i.resolvedAt < :until
+                        """)
+        Long countAssignedSolved(@Param("workerId") UUID workerId,
+                        @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("""
+                        SELECT COUNT(i)
+                        FROM Issue i
+                        JOIN i.assigned w
+                        WHERE w.id = :workerId
+                          AND i.createAt >= :since AND i.createAt < :until
+                          AND i.stages <> com.project.nagarSetu.util.enums.Stages.RESOLVED
+                        """)
+        Long countAssignedInBetween(@Param("workerId") UUID workerId,
+                        @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("""
+                        SELECT new com.project.nagarSetu.util.dto.issue.IssueStageMatrixDto(i.stages, COUNT(i))
+                        FROM Issue i
+                        WHERE (:wardId IS NULL OR i.wardId = :wardId)
+                          AND i.createAt >= :since AND i.createAt < :until
+                        GROUP BY i.stages
+                        """)
+        List<IssueStageMatrixDto> getStageCountsForPeriod(
+                        @Param("wardId") String wardId,
+                        @Param("since") LocalDateTime since,
+                        @Param("until") LocalDateTime until);
+
+        @Query("""
+                        SELECT new com.project.nagarSetu.util.dto.issue.WardMatrixRowDto(
+                            w.id,
+                            w.name,
+                            COUNT(i),
+                            SUM(CASE WHEN i.stages = com.project.nagarSetu.util.enums.Stages.RESOLVED THEN 1 ELSE 0 END),
+                            SUM(CASE WHEN i.stages <> com.project.nagarSetu.util.enums.Stages.RESOLVED THEN 1 ELSE 0 END),
+                            SUM(CASE WHEN i.slaBreached = true THEN 1 ELSE 0 END)
+                        )
+                        FROM com.project.nagarSetu.entity.Ward w
+                        LEFT JOIN Issue i
+                          ON i.wardId = CAST(w.id AS string)
+                         AND i.createAt >= :since AND i.createAt < :until
+                        GROUP BY w.id, w.name
+                        ORDER BY COUNT(i) DESC
+                        """)
+        List<WardMatrixRowDto> getWardMatrixForPeriod(
+                        @Param("since") LocalDateTime since,
                         @Param("until") LocalDateTime until);
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueStageCountDto(i.stages, COUNT(i)) " +

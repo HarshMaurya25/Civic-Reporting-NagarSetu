@@ -24,6 +24,8 @@ import com.project.nagarSetu.util.dto.issue.IssueGetByUserDto;
 import com.project.nagarSetu.util.dto.issue.IssueGetDto;
 import com.project.nagarSetu.util.dto.issue.IssueMatrixBucketDto;
 import com.project.nagarSetu.util.dto.issue.IssueMatrixSummaryDto;
+import com.project.nagarSetu.util.dto.issue.IssueStageMatrixDto;
+import com.project.nagarSetu.util.dto.issue.WardMatrixRowDto;
 import com.project.nagarSetu.util.dto.user.GetWorkerForSupervisorDto;
 import com.project.nagarSetu.util.dto.worker.WorkerCreateResponse;
 import com.project.nagarSetu.util.dto.worker.WorkerLoginReponseDto;
@@ -46,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -251,6 +254,63 @@ public class SuperVisiorService {
 
     private long safeCount(Long count) {
         return count == null ? 0L : count;
+    }
+
+    @Transactional
+    public List<WardMatrixRowDto> getWardWiseMatrix(UUID supervisorId, int days) {
+        int safeDays = days <= 0 ? 30 : Math.min(days, 365);
+        LocalDateTime until = LocalDateTime.now();
+        LocalDateTime since = until.minusDays(safeDays);
+
+        Optional<com.project.nagarSetu.entity.Ward> wardOpt = wardRepository.findBySupervisor_Id(supervisorId);
+        if (wardOpt.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        com.project.nagarSetu.entity.Ward ward = wardOpt.get();
+        String wardFilter = ward.getId().toString();
+
+        long reported = safeCount(issueRepository.countReportedIssues(wardFilter, since, until));
+        long solved = safeCount(issueRepository.countSolvedIssues(wardFilter, since, until));
+        long inBetween = safeCount(issueRepository.countInBetweenIssues(wardFilter, since, until));
+        long slaBreached = safeCount(issueRepository.countSlaBreached(wardFilter, since, until));
+
+        WardMatrixRowDto row = WardMatrixRowDto.builder()
+                .wardId(ward.getId())
+                .wardName(ward.getName())
+                .reported(reported)
+                .solved(solved)
+                .inBetween(inBetween)
+                .slaBreached(slaBreached)
+                .build();
+
+        return java.util.List.of(row);
+    }
+
+    @Transactional
+    public List<IssueStageMatrixDto> getStageMatrixForSupervisor(UUID supervisorId, int days) {
+        int safeDays = days <= 0 ? 7 : Math.min(days, 365);
+        LocalDateTime until = LocalDateTime.now();
+        LocalDateTime since = until.minusDays(safeDays);
+
+        UUID wardId = wardRepository.findBySupervisor_Id(supervisorId)
+                .map(com.project.nagarSetu.entity.Ward::getId)
+                .orElse(null);
+        String wardFilter = wardId == null ? null : wardId.toString();
+        return issueRepository.getStageCountsForPeriod(wardFilter, since, until);
+    }
+
+    @Transactional
+    public long getSlaBreachedForSupervisor(UUID supervisorId, int days) {
+        int safeDays = days <= 0 ? 30 : Math.min(days, 365);
+        LocalDateTime until = LocalDateTime.now();
+        LocalDateTime since = until.minusDays(safeDays);
+
+        UUID wardId = wardRepository.findBySupervisor_Id(supervisorId)
+                .map(com.project.nagarSetu.entity.Ward::getId)
+                .orElse(null);
+        String wardFilter = wardId == null ? null : wardId.toString();
+        return safeCount(issueRepository.countSlaBreached(wardFilter, since, until));
     }
 
 }

@@ -31,10 +31,14 @@ import com.project.nagarSetu.util.dto.admin.AdminUserDto;
 import com.project.nagarSetu.util.dto.admin.AdminStatsOverviewDto;
 import com.project.nagarSetu.util.dto.admin.UserBasicDetailDto;
 import com.project.nagarSetu.util.dto.admin.WardDetailDto;
+import com.project.nagarSetu.util.dto.issue.IssueStageMatrixDto;
+import com.project.nagarSetu.util.dto.issue.WardMatrixRowDto;
 import com.project.nagarSetu.util.enums.Roles;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class AdminService {
 
         private final WorkerRepository workerRepository;
@@ -144,6 +148,8 @@ public class AdminService {
                                                 "Supervisor not found with id: " + superVisorId));
 
                 worker.setSupervisior(supervisior);
+                // Once a worker is assigned to a supervisor, the worker should be considered "started"
+                worker.setStarted(true);
 
                 workerRepository.save(worker);
 
@@ -169,7 +175,21 @@ public class AdminService {
         }
 
         public List<AdminUserDto> getAllWorkers() {
-                return workerRepository.findAllWorker();
+                List<AdminUserDto> workers = workerRepository.findAllWorker();
+                log.trace("AdminService.getAllWorkers -> {} rows", workers != null ? workers.size() : null);
+                return workers;
+        }
+
+        public List<com.project.nagarSetu.util.dto.admin.SimpleWorkerDto> getAllWorkersSimple() {
+                List<com.project.nagarSetu.util.dto.admin.SimpleWorkerDto> workers = workerRepository.findAllWorkersSimple();
+                log.trace("AdminService.getAllWorkersSimple -> {} rows", workers != null ? workers.size() : null);
+                return workers;
+        }
+
+        public List<Worker> getAllWorkersRaw() {
+                List<Worker> workers = workerRepository.findAllWorkersRaw();
+                log.trace("AdminService.getAllWorkersRaw -> {} rows", workers != null ? workers.size() : null);
+                return workers;
         }
 
         public List<AdminUserDto> getAllWorkersWithNoStarted() {
@@ -514,6 +534,30 @@ public class AdminService {
                                 .totalIssuesReported(issueRepository.count())
                                 .totalIssuesResolved(totalResolved)
                                 .build();
+        }
+
+        public java.util.List<IssueStageMatrixDto> getStageMatrix(java.util.UUID wardId, int days) {
+                int safeDays = days <= 0 ? 7 : Math.min(days, 365);
+                java.time.LocalDateTime until = java.time.LocalDateTime.now();
+                java.time.LocalDateTime since = until.minusDays(safeDays);
+                String wardFilter = wardId == null ? null : wardId.toString();
+                return issueRepository.getStageCountsForPeriod(wardFilter, since, until);
+        }
+
+        public java.util.List<WardMatrixRowDto> getWardMatrix(int days) {
+                int safeDays = days <= 0 ? 30 : Math.min(days, 365);
+                java.time.LocalDateTime until = java.time.LocalDateTime.now();
+                java.time.LocalDateTime since = until.minusDays(safeDays);
+                return issueRepository.getWardMatrixForPeriod(since, until);
+        }
+
+        public long getSlaBreachedCount(java.util.UUID wardId, int days) {
+                int safeDays = days <= 0 ? 30 : Math.min(days, 365);
+                java.time.LocalDateTime until = java.time.LocalDateTime.now();
+                java.time.LocalDateTime since = until.minusDays(safeDays);
+                String wardFilter = wardId == null ? null : wardId.toString();
+                Long count = issueRepository.countSlaBreached(wardFilter, since, until);
+                return count == null ? 0L : count;
         }
 
         public IssueMatrixSummaryDto getIssueMatrixSummary(UUID wardId) {
