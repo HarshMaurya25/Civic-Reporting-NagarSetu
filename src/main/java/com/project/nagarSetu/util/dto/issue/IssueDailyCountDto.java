@@ -45,4 +45,26 @@ public class IssueDailyCountDto {
         this.date = timestamp == null ? null : timestamp.toLocalDateTime().toLocalDate();
         this.count = count == null ? 0L : count;
     }
+
+    // Capture-all for generic Object from query results
+    public IssueDailyCountDto(Object dateObj, Long count) {
+        this.count = count == null ? 0L : count;
+        if (dateObj == null) {
+            this.date = null;
+        } else if (dateObj instanceof java.sql.Date) {
+            this.date = ((java.sql.Date) dateObj).toLocalDate();
+        } else if (dateObj instanceof java.time.LocalDate) {
+            this.date = (java.time.LocalDate) dateObj;
+        } else if (dateObj instanceof java.time.LocalDateTime) {
+            this.date = ((java.time.LocalDateTime) dateObj).toLocalDate();
+        } else if (dateObj instanceof java.sql.Timestamp) {
+            this.date = ((java.sql.Timestamp) dateObj).toLocalDateTime().toLocalDate();
+        } else if (dateObj instanceof java.util.Date) {
+            java.time.Instant instant = ((java.util.Date) dateObj).toInstant();
+            this.date = instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        } else {
+            // Fallback for unexpected types
+            this.date = null;
+        }
+    }
 }

@@ -72,7 +72,7 @@ springdoc:
   enable-default-api-docs: true
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: "This-is-the-secret-jwt-code-for-the-authentication$1234455"
 
 assignment:
   scoring:

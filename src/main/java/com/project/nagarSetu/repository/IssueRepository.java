@@ -200,12 +200,12 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
         java.util.List<com.project.nagarSetu.util.dto.issue.IssueStageCountDto> getIssueCountSinceGroupedByStage(
                         @Param("since") LocalDateTime since);
 
-        @Query("SELECT FUNCTION('date', i.createAt), COUNT(i) " +
-                        "FROM Issue i WHERE i.createAt >= :since GROUP BY FUNCTION('date', i.createAt) ORDER BY FUNCTION('date', i.createAt) ASC")
+        @Query("SELECT CAST(i.createAt AS date), COUNT(i) " +
+                        "FROM Issue i WHERE i.createAt >= :since GROUP BY CAST(i.createAt AS date) ORDER BY CAST(i.createAt AS date) ASC")
         java.util.List<Object[]> getCreatedCountSinceGroupedByDate(@Param("since") java.time.LocalDateTime since);
 
-        @Query("SELECT FUNCTION('date', i.resolvedAt), COUNT(i) " +
-                        "FROM Issue i WHERE i.resolvedAt IS NOT NULL AND i.resolvedAt >= :since GROUP BY FUNCTION('date', i.resolvedAt) ORDER BY FUNCTION('date', i.resolvedAt) ASC")
+        @Query("SELECT CAST(i.resolvedAt AS date), COUNT(i) " +
+                        "FROM Issue i WHERE i.resolvedAt IS NOT NULL AND i.resolvedAt >= :since GROUP BY CAST(i.resolvedAt AS date) ORDER BY CAST(i.resolvedAt AS date) ASC")
         java.util.List<Object[]> getResolvedCountSinceGroupedByDate(@Param("since") java.time.LocalDateTime since);
 
         @Query("SELECT new com.project.nagarSetu.util.dto.issue.IssueByMap(" +
@@ -236,4 +236,20 @@ public interface IssueRepository extends JpaRepository<Issue, UUID> {
         List<Issue> findPendingIssuesBySupervisorId(@Param("supervisiorId") UUID supervisiorId);
 
         List<Issue> findByCreateAtAfter(LocalDateTime date);
+
+    @Query("SELECT EXTRACT(HOUR FROM i.createAt), COUNT(i) " +
+           "FROM Issue i " +
+           "WHERE (:wardId IS NULL OR i.wardId = :wardId) " +
+           "GROUP BY EXTRACT(HOUR FROM i.createAt)")
+    List<Object[]> getHourlyCounts(@Param("wardId") String wardId);
+
+    @Query("SELECT i FROM Issue i WHERE (:wardId IS NULL OR i.wardId = :wardId) AND i.stages <> 'RESOLVED'")
+    List<Issue> findUnresolvedByWardOrOverall(@Param("wardId") String wardId);
+
+    @Query("SELECT CAST(i.createAt AS date), COUNT(i) " +
+           "FROM Issue i " +
+           "WHERE i.wardId = :wardId AND i.createAt >= :since " +
+           "GROUP BY CAST(i.createAt AS date) " +
+           "ORDER BY CAST(i.createAt AS date) ASC")
+    List<Object[]> getDailyCountsForWardSince(@Param("wardId") String wardId, @Param("since") LocalDateTime since);
 }
